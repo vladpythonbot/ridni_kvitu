@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Рідні квіти — крафтове варення</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#C8860A;
+  --gold-light:#FDF3DC;
+  --gold-mid:#F5C842;
+  --gold-pale:#FFFBF0;
+  --marigold:#E07B00;
+  --marigold-deep:#A85500;
+  --green:#4A7C3F;
+  --green-light:#EBF3E8;
+  --bark:#2E1F0E;
+  --bark-mid:#5C3D1E;
+  --bark-light:#9C7040;
+  --cream:#FAF6EE;
+  --muted:#9A8870;
+  --border:rgba(46,31,14,0.10);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Jost',sans-serif;font-weight:300;background:var(--cream);color:var(--bark);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--cream)}
+::-webkit-scrollbar-thumb{background:var(--gold);border-radius:3px}
+
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(250,246,238,0.93);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:66px;
+}
+.logo{
+  font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:500;
+  color:var(--bark);letter-spacing:0.03em;display:flex;align-items:center;gap:10px;text-decoration:none;
+}
+.logo-jar{
+  width:36px;height:36px;background:var(--gold-light);border-radius:10px;
+  border:1px solid rgba(200,134,10,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;
+}
+.nav-links{display:flex;gap:32px}
+.nav-links a{font-size:13px;font-weight:400;letter-spacing:0.08em;text-transform:uppercase;color:var(--bark-mid);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--gold)}
+.nav-right{display:flex;align-items:center;gap:12px}
+.nav-btn{
+  background:none;border:1px solid var(--border);border-radius:50px;
+  padding:8px 18px;font-family:'Jost',sans-serif;font-size:13px;font-weight:400;
+  color:var(--bark);cursor:pointer;display:flex;align-items:center;gap:7px;
+  transition:background .2s,border-color .2s;
+}
+.nav-btn:hover{background:var(--gold-light);border-color:var(--gold);color:var(--gold)}
+.nav-btn .cnt{background:var(--marigold);color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;display:none}
+.nav-btn .cnt.show{display:inline}
+.admin-nav-btn{
+  display:none;background:none;border:1px solid var(--border);border-radius:50px;
+  padding:8px 18px;font-family:'Jost',sans-serif;font-size:13px;color:var(--bark-mid);
+  cursor:pointer;align-items:center;gap:6px;transition:background .2s;
+}
+.admin-nav-btn:hover{background:var(--gold-light);border-color:var(--gold);color:var(--gold)}
+
+.hero{
+  min-height:88vh;display:grid;grid-template-columns:1fr 1fr;
+  align-items:center;padding:80px 64px;gap:64px;
+  position:relative;overflow:hidden;
+}
+.hero::after{
+  content:'';position:absolute;right:-160px;top:-160px;
+  width:700px;height:700px;border-radius:50%;
+  background:radial-gradient(circle,rgba(245,200,66,.18) 0%,transparent 68%);pointer-events:none;
+}
+.hero-tag{
+  font-size:12px;font-weight:400;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--marigold);margin-bottom:18px;display:flex;align-items:center;gap:10px;
+}
+.hero-tag::before{content:'';width:28px;height:1px;background:var(--marigold)}
+.hero h1{font-family:'Cormorant Garamond',serif;font-size:clamp(44px,5.5vw,76px);font-weight:300;line-height:1.1;color:var(--bark);margin-bottom:22px}
+.hero h1 em{font-style:italic;color:var(--marigold)}
+.hero-desc{font-size:16px;font-weight:300;line-height:1.85;color:var(--bark-mid);max-width:460px;margin-bottom:36px}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap}
+.btn-primary{
+  background:var(--marigold);color:#fff;border:none;border-radius:50px;
+  padding:14px 34px;font-family:'Jost',sans-serif;font-size:14px;font-weight:400;letter-spacing:.05em;
+  cursor:pointer;transition:background .2s,transform .15s;
+}
+.btn-primary:hover{background:var(--bark);transform:translateY(-1px)}
+.btn-ghost{
+  background:transparent;color:var(--bark);border:1px solid var(--border);border-radius:50px;
+  padding:14px 34px;font-family:'Jost',sans-serif;font-size:14px;cursor:pointer;transition:background .2s,border-color .2s;
+}
+.btn-ghost:hover{background:var(--gold-light);border-color:var(--gold);color:var(--gold)}
+.hero-visual{display:flex;align-items:center;justify-content:center;position:relative;z-index:1}
+.hero-blob{
+  width:400px;height:400px;
+  border-radius:60% 40% 55% 45%/50% 60% 40% 55%;
+  background:linear-gradient(145deg,#FDF3DC 0%,#F5C842 45%,#EBF3E8 100%);
+  display:flex;align-items:center;justify-content:center;font-size:110px;
+  animation:blob 9s ease-in-out infinite;position:relative;
+}
+@keyframes blob{
+  0%,100%{border-radius:60% 40% 55% 45%/50% 60% 40% 55%}
+  33%{border-radius:40% 60% 45% 55%/60% 40% 55% 45%}
+  66%{border-radius:55% 45% 60% 40%/45% 55% 50% 60%}
+}
+.hero-sticker{
+  position:absolute;bottom:24px;right:10px;background:#fff;border:1px solid var(--border);
+  border-radius:18px;padding:14px 20px;font-size:13px;color:var(--bark-mid);
+  box-shadow:0 6px 28px rgba(46,31,14,.09);
+}
+.hero-sticker strong{display:block;font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:500;color:var(--marigold)}
+.hero-sticker-2{
+  position:absolute;top:24px;left:-10px;background:var(--gold-light);
+  border:1px solid rgba(200,134,10,.2);border-radius:14px;
+  padding:10px 16px;font-size:12px;color:var(--marigold-deep);font-weight:400;
+}
+
+.marquee-wrap{background:var(--marigold);padding:14px 0;overflow:hidden}
+.marquee-track{display:flex;animation:marquee 22s linear infinite;width:max-content}
+.marquee-item{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:400;color:#fff;padding:0 40px;white-space:nowrap;letter-spacing:.04em}
+.marquee-item::after{content:'✦';margin-left:40px;opacity:.6;font-size:14px}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+.features{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.feat{background:var(--cream);padding:32px 28px;display:flex;gap:14px;align-items:flex-start}
+.feat-icon{font-size:26px;flex-shrink:0;margin-top:3px}
+.feat-lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.feat-val{font-family:'Cormorant Garamond',serif;font-size:19px;color:var(--bark);line-height:1.3}
+
+section{padding:80px 64px}
+.sec-tag{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--marigold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec-tag::before{content:'';width:22px;height:1px;background:var(--marigold)}
+.sec-title{font-family:'Cormorant Garamond',serif;font-size:clamp(30px,4vw,50px);font-weight:300;color:var(--bark);line-height:1.2}
+.sec-title em{font-style:italic;color:var(--marigold)}
+.sec-head{margin-bottom:44px}
+
+.marigold-feature{
+  background:var(--bark);padding:80px 64px;
+  display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;
+}
+.mf-visual{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mf-block{border-radius:20px;padding:28px 22px;display:flex;flex-direction:column;gap:10px}
+.mf-block:nth-child(1){background:rgba(245,200,66,.15);margin-top:32px}
+.mf-block:nth-child(2){background:rgba(74,124,63,.15)}
+.mf-block:nth-child(3){background:rgba(74,124,63,.15)}
+.mf-block:nth-child(4){background:rgba(245,200,66,.15);margin-top:-32px}
+.mf-block-icon{font-size:30px}
+.mf-block-title{font-family:'Cormorant Garamond',serif;font-size:18px;color:#fff;font-weight:400}
+.mf-block-text{font-size:13px;color:rgba(255,255,255,.55);line-height:1.6}
+.mf-text .sec-tag{color:var(--gold-mid)}
+.mf-text .sec-tag::before{background:var(--gold-mid)}
+.mf-text .sec-title{color:#fff}
+.mf-text .sec-title em{color:var(--gold-mid)}
+.mf-text p{font-size:16px;color:rgba(255,255,255,.7);line-height:1.9;margin-top:20px;max-width:440px}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:36px}
+.f-btn{padding:8px 22px;border-radius:50px;border:1px solid var(--border);background:#fff;font-family:'Jost',sans-serif;font-size:13px;color:var(--bark-mid);cursor:pointer;transition:all .2s}
+.f-btn:hover{border-color:var(--gold);color:var(--gold)}
+.f-btn.active{background:var(--marigold);color:#fff;border-color:var(--marigold)}
+
+.products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:24px}
+.p-card{background:#fff;border-radius:22px;border:1px solid var(--border);overflow:hidden;cursor:pointer;transition:transform .25s,box-shadow .25s}
+.p-card:hover{transform:translateY(-5px);box-shadow:0 20px 52px rgba(46,31,14,.11)}
+.p-img{height:190px;display:flex;align-items:center;justify-content:center;font-size:74px;position:relative}
+.p-img-gold{background:linear-gradient(135deg,#FFFBF0,#FDF3DC)}
+.p-img-green{background:linear-gradient(135deg,#EBF3E8,#DCF0D8)}
+.p-img-warm{background:linear-gradient(135deg,#FFF5E8,#FFE8CC)}
+.p-badge{position:absolute;top:12px;left:12px;background:var(--marigold);color:#fff;border-radius:20px;padding:4px 11px;font-size:11px;font-weight:400}
+.p-badge.new{background:var(--green)}
+.p-body{padding:20px 20px 18px}
+.p-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400;color:var(--bark);margin-bottom:4px;line-height:1.25}
+.p-weight{font-size:12px;color:var(--bark-light);margin-bottom:8px}
+.p-desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+.p-footer{display:flex;align-items:center;justify-content:space-between}
+.p-price{font-size:22px;font-weight:500;color:var(--marigold)}
+.p-price span{font-size:13px;font-weight:300;color:var(--muted)}
+.add-btn{background:var(--bark);color:#fff;border:none;border-radius:50px;padding:10px 22px;font-family:'Jost',sans-serif;font-size:13px;cursor:pointer;transition:background .2s;display:flex;align-items:center;gap:6px}
+.add-btn:hover{background:var(--marigold)}
+.in-cart{background:var(--green-light);color:var(--green);border-radius:50px;padding:8px 16px;font-size:12px;display:none;align-items:center;gap:5px}
+
+.reviews-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.review-card{background:#fff;border-radius:20px;border:1px solid var(--border);padding:24px}
+.review-stars{color:var(--gold-mid);font-size:14px;margin-bottom:10px}
+.review-text{font-size:14px;color:var(--bark-mid);line-height:1.7;margin-bottom:16px;font-style:italic}
+.review-author{display:flex;align-items:center;gap:10px}
+.review-avatar{width:36px;height:36px;border-radius:50%;background:var(--gold-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.review-name{font-size:13px;font-weight:500;color:var(--bark)}
+.review-date{font-size:12px;color:var(--muted)}
+
+.overlay{position:fixed;inset:0;background:rgba(46,31,14,.45);z-index:200;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.open{opacity:1;pointer-events:all}
+.drawer{position:fixed;right:0;top:0;bottom:0;width:440px;max-width:100vw;background:#fff;z-index:201;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);box-shadow:-8px 0 52px rgba(46,31,14,.13)}
+.drawer.open{transform:translateX(0)}
+.drawer-head{padding:24px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.drawer-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;color:var(--bark)}
+.close-btn{background:none;border:1px solid var(--border);border-radius:50%;width:36px;height:36px;cursor:pointer;color:var(--muted);font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.close-btn:hover{background:var(--gold-light);color:var(--gold);border-color:var(--gold)}
+.drawer-body{flex:1;overflow-y:auto;padding:20px 28px}
+.cart-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--muted)}
+.cart-empty .emo{font-size:52px;opacity:.45}
+.cart-empty p{font-size:15px;text-align:center;line-height:1.7}
+.c-item{display:flex;gap:14px;align-items:flex-start;padding:16px 0;border-bottom:1px solid var(--border)}
+.c-emo{width:62px;height:62px;border-radius:14px;background:var(--gold-light);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
+.c-info{flex:1;min-width:0}
+.c-name{font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--bark);margin-bottom:2px;line-height:1.3}
+.c-sub{font-size:12px;color:var(--muted);margin-bottom:8px}
+.qty-row{display:flex;align-items:center;gap:10px}
+.q-btn{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:16px;color:var(--bark);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.q-btn:hover{background:var(--gold-light);border-color:var(--gold);color:var(--gold)}
+.q-num{font-size:15px;font-weight:500;min-width:20px;text-align:center}
+.c-price{font-size:16px;font-weight:500;color:var(--marigold);flex-shrink:0;margin-top:3px}
+.drawer-foot{padding:20px 28px 24px;border-top:1px solid var(--border);flex-shrink:0}
+.total-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px}
+.total-lbl{font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.total-val{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:400;color:var(--bark)}
+.mono-btn{
+  width:100%;background:#1A1A2E;color:#fff;border:none;border-radius:14px;
+  padding:17px 20px;font-family:'Jost',sans-serif;font-size:15px;font-weight:400;
+  cursor:pointer;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:12px;
+}
+.mono-btn:hover{background:#0F0F20}
+.mono-logo{background:#fff;border-radius:7px;width:30px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1A1A2E;letter-spacing:-.5px;flex-shrink:0}
+.mono-sub{font-size:12px;color:var(--muted);margin-top:8px;text-align:center}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(46,31,14,.55);z-index:300;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:24px;width:min(520px,96vw);overflow:hidden;box-shadow:0 32px 80px rgba(46,31,14,.2)}
+.modal-head{padding:28px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h2{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;color:var(--bark)}
+.modal-body{padding:28px 32px}
+
+.mono-card{
+  background:#1A1A2E;border-radius:18px;padding:24px;margin-bottom:24px;
+  position:relative;overflow:hidden;
+}
+.mono-card::before{content:'';position:absolute;right:-30px;top:-30px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.04)}
+.mono-card-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px}
+.mono-card-sum{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:400;color:#fff;line-height:1}
+.mono-card-currency{font-size:20px;color:rgba(255,255,255,.55);margin-left:6px}
+.mono-card-desc{font-size:14px;color:rgba(255,255,255,.5);margin-top:8px}
+.mono-card-logo{position:absolute;top:20px;right:24px;background:#fff;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;color:#1A1A2E;letter-spacing:-.5px}
+
+.pay-form{display:flex;flex-direction:column;gap:14px}
+.pay-input{width:100%;padding:13px 18px;border:1px solid var(--border);border-radius:12px;font-family:'Jost',sans-serif;font-size:15px;color:var(--bark);background:var(--cream);outline:none;transition:border-color .2s}
+.pay-input:focus{border-color:var(--gold)}
+.pay-input::placeholder{color:var(--muted)}
+.pay-note{font-size:12px;color:var(--muted);line-height:1.6;padding:12px 16px;background:var(--gold-pale);border-radius:10px;border-left:3px solid var(--gold)}
+.pay-submit{background:#1A1A2E;color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Jost',sans-serif;font-size:15px;cursor:pointer;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:10px}
+.pay-submit:hover{background:#0F0F20}
+
+.admin-modal{background:#fff;border-radius:24px;width:min(860px,96vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(46,31,14,.2)}
+.modal-scroll{overflow-y:auto;padding:28px 32px;flex:1}
+.a-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
+.a-stat{background:var(--cream);border-radius:16px;border:1px solid var(--border);padding:18px 20px}
+.a-stat-lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.a-stat-val{font-family:'Cormorant Garamond',serif;font-size:30px;color:var(--bark)}
+.a-stat-val.gold{color:var(--marigold)}
+.a-stat-val.green{color:var(--green)}
+.a-sec{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--bark);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.a-orders{display:flex;flex-direction:column;gap:10px;margin-bottom:30px}
+.a-order{background:var(--cream);border-radius:14px;border:1px solid var(--border);padding:14px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.a-oid{font-size:13px;font-weight:500;color:var(--bark-mid);min-width:55px}
+.a-oname{font-size:14px;color:var(--bark);flex:1;min-width:100px}
+.a-oitems{font-size:13px;color:var(--muted);flex:2;min-width:140px}
+.a-osum{font-size:15px;font-weight:500;color:var(--marigold);min-width:75px;text-align:right}
+.a-badge{font-size:11px;padding:4px 12px;border-radius:20px;white-space:nowrap}
+.a-badge.new{background:var(--gold-light);color:var(--marigold)}
+.a-badge.done{background:var(--green-light);color:var(--green)}
+.a-badge.ship{background:#EAF1FB;color:#1A5FAA}
+.a-prods{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.a-prod{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--cream);border-radius:12px;border:1px solid var(--border)}
+.a-prod-emo{font-size:22px;flex-shrink:0}
+.a-prod-name{flex:1;font-size:14px;color:var(--bark)}
+.a-prod-w{font-size:12px;color:var(--muted)}
+.a-prod-price{font-size:14px;font-weight:500;color:var(--marigold);min-width:70px;text-align:right}
+.a-prod-acts{display:flex;gap:7px}
+.a-act{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:15px;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.a-act:hover{background:var(--gold-light);color:var(--gold);border-color:var(--gold)}
+.a-act.del:hover{background:#FCEBEB;color:#A32D2D;border-color:#F09595}
+.a-add{background:var(--green);color:#fff;border:none;border-radius:50px;padding:11px 24px;font-family:'Jost',sans-serif;font-size:14px;cursor:pointer;transition:background .2s}
+.a-add:hover{background:var(--bark)}
+
+.contacts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px}
+.c-card{background:#fff;border-radius:20px;border:1px solid var(--border);padding:26px 22px}
+.c-card-icon{font-size:30px;margin-bottom:12px}
+.c-card-lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.c-card-val{font-family:'Cormorant Garamond',serif;font-size:19px;color:var(--bark);line-height:1.4}
+
+footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-columns:2fr 1fr 1fr;gap:56px}
+.f-brand p{font-size:14px;color:rgba(255,255,255,.5);line-height:1.8;max-width:280px;margin-top:14px}
+.f-col h4{font-family:'Cormorant Garamond',serif;font-size:18px;color:#fff;margin-bottom:14px;font-weight:400}
+.f-col a{display:block;font-size:14px;color:rgba(255,255,255,.5);text-decoration:none;margin-bottom:9px;transition:color .2s}
+.f-col a:hover{color:var(--gold-mid)}
+.footer-bottom{background:var(--bark);padding:18px 64px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.3)}
+
+.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:var(--bark);color:#fff;border-radius:50px;padding:12px 24px;font-size:14px;white-space:nowrap;z-index:400;pointer-events:none;opacity:0;transition:opacity .25s}
+.toast.show{opacity:1}
+
+@media(max-width:960px){
+  .hero{grid-template-columns:1fr;padding:52px 24px;min-height:auto}
+  .hero-visual{display:none}
+  .features{grid-template-columns:repeat(2,1fr)}
+  section{padding:56px 24px}
+  .marigold-feature{grid-template-columns:1fr;padding:56px 24px;gap:40px}
+  .mf-visual{display:none}
+  footer{grid-template-columns:1fr;padding:44px 24px 28px;gap:28px}
+  .footer-bottom{padding:16px 24px;flex-direction:column;gap:6px}
+  nav{padding:0 20px}
+  .nav-links{display:none}
+  .a-stats{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="#">
+    <div class="logo-jar">🫙</div>
+    Рідні квіти
+  </a>
+  <div class="nav-links">
+    <a href="#catalog">Варення</a>
+    <a href="#story">Про нас</a>
+    <a href="#reviews">Відгуки</a>
+    <a href="#contacts">Контакти</a>
+  </div>
+  <div class="nav-right">
+    <button class="admin-nav-btn" id="adminNavBtn" onclick="openAdmin()">⚙️ Адмін</button>
+    <button class="nav-btn" onclick="openCart()">
+      🛒 Кошик <span class="cnt" id="cartCount">0</span>
+    </button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="hero-tag">Харків · Крафтове варення</div>
+    <h1>Варення з <em>чорнобривців</em> — смак сонця у баночці</h1>
+    <p class="hero-desc">Готуємо вручну з квітів, зібраних у власному саду. Без барвників і консервантів — лише квіти, мед і любов.</p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="document.getElementById('catalog').scrollIntoView({behavior:'smooth'})">Обрати варення</button>
+      <button class="btn-ghost" onclick="document.getElementById('story').scrollIntoView({behavior:'smooth'})">Наша історія</button>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-blob">🫙</div>
+    <div class="hero-sticker"><strong>100%</strong>натуральний склад</div>
+    <div class="hero-sticker-2">🌼 З чорнобривців</div>
+  </div>
+</section>
+
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item">Варення з чорнобривців</span>
+    <span class="marquee-item">Кропивне з лимоном</span>
+    <span class="marquee-item">Трояндова пелюстка</span>
+    <span class="marquee-item">Чорна смородина</span>
+    <span class="marquee-item">Бузина з імбиром</span>
+    <span class="marquee-item">Лаванда і мед</span>
+    <span class="marquee-item">Варення з чорнобривців</span>
+    <span class="marquee-item">Кропивне з лимоном</span>
+    <span class="marquee-item">Трояндова пелюстка</span>
+    <span class="marquee-item">Чорна смородина</span>
+    <span class="marquee-item">Бузина з імбиром</span>
+    <span class="marquee-item">Лаванда і мед</span>
+  </div>
+</div>
+
+<div class="features">
+  <div class="feat"><div class="feat-icon">🌼</div><div><div class="feat-lbl">Основа</div><div class="feat-val">Чорнобривці з саду</div></div></div>
+  <div class="feat"><div class="feat-icon">🍯</div><div><div class="feat-lbl">Без цукру</div><div class="feat-val">Лише мед і квіти</div></div></div>
+  <div class="feat"><div class="feat-icon">🫙</div><div><div class="feat-lbl">Термін</div><div class="feat-val">1 рік без холодильника</div></div></div>
+  <div class="feat"><div class="feat-icon">🚚</div><div><div class="feat-lbl">Доставка</div><div class="feat-val">Нова Пошта по Україні</div></div></div>
+</div>
+
+<section id="catalog">
+  <div class="sec-head">
+    <div class="sec-tag">Каталог</div>
+    <h2 class="sec-title">Наші <em>варення</em></h2>
+  </div>
+  <div class="filters">
+    <button class="f-btn active" onclick="filterProd(this,'all')">Усі</button>
+    <button class="f-btn" onclick="filterProd(this,'marigold')">🌼 Чорнобривці</button>
+    <button class="f-btn" onclick="filterProd(this,'flower')">🌸 Квіткові</button>
+    <button class="f-btn" onclick="filterProd(this,'berry')">🫐 Ягідні</button>
+    <button class="f-btn" onclick="filterProd(this,'herb')">🌿 Трав'яні</button>
+  </div>
+  <div class="products-grid" id="productsGrid"></div>
+</section>
+
+<div class="marigold-feature" id="story">
+  <div class="mf-visual">
+    <div class="mf-block"><div class="mf-block-icon">🌼</div><div class="mf-block-title">Чорнобривці</div><div class="mf-block-text">Збираємо вручну на світанку, коли квіти найароматніші</div></div>
+    <div class="mf-block"><div class="mf-block-icon">🍯</div><div class="mf-block-title">Карпатський мед</div><div class="mf-block-text">Замість цукру — натуральний мед від перевірених пасічників</div></div>
+    <div class="mf-block"><div class="mf-block-icon">🫙</div><div class="mf-block-title">Ручна робота</div><div class="mf-block-text">Кожна баночка варена у мідному казанку на відкритому вогні</div></div>
+    <div class="mf-block"><div class="mf-block-icon">💛</div><div class="mf-block-title">З любов'ю</div><div class="mf-block-text">Рецепти передаються у нашій родині вже три покоління</div></div>
+  </div>
+  <div class="mf-text">
+    <div class="sec-tag">Чому чорнобривці?</div>
+    <h2 class="sec-title">Квіти, що <em>зцілюють</em> і радують</h2>
+    <p>Чорнобривці — це не просто краса. Вони містять антиоксиданти, мають протизапальні властивості і дають неповторний квітково-медовий смак, який не сплутаєш ні з чим.</p>
+    <p style="margin-top:14px">Ми вирощуємо їх самі, без хімії, і переробляємо того ж дня. Тому у кожній баночці — живий смак літнього саду.</p>
+    <button class="btn-primary" style="margin-top:28px;background:var(--gold-mid);color:var(--bark)" onclick="document.getElementById('catalog').scrollIntoView({behavior:'smooth'})">Спробувати</button>
+  </div>
+</div>
+
+<section id="reviews" style="background:#fff">
+  <div class="sec-head">
+    <div class="sec-tag">Відгуки</div>
+    <h2 class="sec-title">Що кажуть <em>покупці</em></h2>
+  </div>
+  <div class="reviews-grid">
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">«Варення з чорнобривців — це щось неймовірне. Такого смаку я ніде більше не зустрічала. Замовляю вже вчетверте!»</p>
+      <div class="review-author"><div class="review-avatar">🙋</div><div><div class="review-name">Оксана М.</div><div class="review-date">Харків · квітень 2025</div></div></div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">«Подарувала подрузі набір із трьох баночок — вона була у захваті. Пакування теж дуже гарне, як справжній подарунок.»</p>
+      <div class="review-author"><div class="review-avatar">👩</div><div><div class="review-name">Марія К.</div><div class="review-date">Київ · березень 2025</div></div></div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">«Лавандове з медом — це просто казка. Беру регулярно для сімейних сніданків. Дякую за натуральний продукт!»</p>
+      <div class="review-author"><div class="review-avatar">🧑</div><div><div class="review-name">Іван Д.</div><div class="review-date">Полтава · травень 2025</div></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="contacts">
+  <div class="sec-head">
+    <div class="sec-tag">Контакти</div>
+    <h2 class="sec-title">Ми завжди <em>поруч</em></h2>
+  </div>
+  <div class="contacts-grid">
+    <div class="c-card"><div class="c-card-icon">📍</div><div class="c-card-lbl">Адреса</div><div class="c-card-val">Харків<br>вул. Садова, 14</div></div>
+    <div class="c-card"><div class="c-card-icon">📞</div><div class="c-card-lbl">Телефон</div><div class="c-card-val">+38 (050) 123-45-67</div></div>
+    <div class="c-card"><div class="c-card-icon">💬</div><div class="c-card-lbl">Telegram</div><div class="c-card-val">@ridnikvity_jam</div></div>
+    <div class="c-card"><div class="c-card-icon">📦</div><div class="c-card-lbl">Доставка</div><div class="c-card-val">Нова Пошта<br>по всій Україні</div></div>
+  </div>
+</section>
+
+<footer>
+  <div class="f-brand">
+    <div class="logo" style="color:#fff">
+      <div class="logo-jar" style="background:rgba(245,200,66,.12);border-color:rgba(245,200,66,.2)">🫙</div>
+      Рідні квіти
+    </div>
+    <p>Крафтове варення з чорнобривців та інших квітів — приготоване вручну у Харкові з натуральних інгредієнтів.</p>
+  </div>
+  <div class="f-col">
+    <h4>Навігація</h4>
+    <a href="#catalog">Каталог</a>
+    <a href="#story">Наша історія</a>
+    <a href="#reviews">Відгуки</a>
+    <a href="#contacts">Контакти</a>
+  </div>
+  <div class="f-col">
+    <h4>Допомога</h4>
+    <a href="#">Доставка і оплата</a>
+    <a href="#">Склад і зберігання</a>
+    <a href="#">Питання та відповіді</a>
+  </div>
+</footer>
+<div class="footer-bottom">
+  <span>© 2025 Рідні квіти. Всі права захищені.</span>
+  <span style="opacity:.35">🌼</span>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeCart()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="drawer-title">Кошик</div>
+    <button class="close-btn" onclick="closeCart()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot" id="drawerFoot" style="display:none">
+    <div class="total-row">
+      <span class="total-lbl">Разом</span>
+      <span class="total-val" id="totalVal">0 ₴</span>
+    </div>
+    <button class="mono-btn" onclick="openPayModal()">
+      <div class="mono-logo">mono</div>
+      Оплатити через Monobank
+    </button>
+    <div class="mono-sub">Безпечна оплата карткою через Monobank</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="payModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Оплата замовлення</h2>
+      <button class="close-btn" onclick="closePay()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mono-card">
+        <div class="mono-card-label">Сума до сплати</div>
+        <div><span class="mono-card-sum" id="paySum">0</span><span class="mono-card-currency">₴</span></div>
+        <div class="mono-card-desc" id="payDesc">Крафтове варення «Рідні квіти»</div>
+        <div class="mono-card-logo">mono</div>
+      </div>
+      <div class="pay-form">
+        <input class="pay-input" type="text" placeholder="Ваше ім'я та прізвище" id="payName">
+        <input class="pay-input" type="tel" placeholder="Номер телефону" id="payPhone">
+        <input class="pay-input" type="text" placeholder="Місто та відділення Нової Пошти" id="payAddress">
+        <div class="pay-note">💳 Після підтвердження ви отримаєте посилання на оплату через Monobank. Відправка протягом 1–2 робочих днів після оплати.</div>
+        <button class="pay-submit" onclick="submitOrder()">
+          <div class="mono-logo">mono</div>
+          Підтвердити та перейти до оплати
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="adminModal">
+  <div class="admin-modal">
+    <div class="modal-head">
+      <h2>⚙️ Адміністрування</h2>
+      <button class="close-btn" onclick="closeAdmin()">✕</button>
+    </div>
+    <div class="modal-scroll">
+      <div class="a-stats">
+        <div class="a-stat"><div class="a-stat-lbl">Замовлень сьогодні</div><div class="a-stat-val gold">14</div></div>
+        <div class="a-stat"><div class="a-stat-lbl">Виручка</div><div class="a-stat-val green">6 240 ₴</div></div>
+        <div class="a-stat"><div class="a-stat-lbl">Товарів</div><div class="a-stat-val">12</div></div>
+        <div class="a-stat"><div class="a-stat-lbl">Очікують</div><div class="a-stat-val gold">3</div></div>
+      </div>
+      <div class="a-sec">Останні замовлення</div>
+      <div class="a-orders">
+        <div class="a-order"><div class="a-oid">#0054</div><div class="a-oname">Оксана Мельник</div><div class="a-oitems">🌼 Чорнобривці × 2 · 🌸 Троянда × 1</div><div class="a-osum">870 ₴</div><div class="a-badge new">Новий</div></div>
+        <div class="a-order"><div class="a-oid">#0053</div><div class="a-oname">Андрій Романюк</div><div class="a-oitems">🫐 Смородина × 3</div><div class="a-osum">1 050 ₴</div><div class="a-badge ship">Відправлено</div></div>
+        <div class="a-order"><div class="a-oid">#0052</div><div class="a-oname">Ірина Савченко</div><div class="a-oitems">💜 Лаванда × 2 · 🌿 Кропива × 1</div><div class="a-osum">1 190 ₴</div><div class="a-badge done">Виконано</div></div>
+      </div>
+      <div class="a-sec">Товари</div>
+      <div class="a-prods" id="adminProds"></div>
+      <button class="a-add">＋ Додати товар</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+const userId = tg?.initDataUnsafe?.user?.id ?? null;
+
+if (tg && userId) {
+  fetch(`/check-admin?userId=${userId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.isAdmin) {
+        document.getElementById('adminNavBtn').style.display = 'flex';
+      }
+    })
+    .catch(err => console.error("Admin check error:", err));
+}
+
+async function adminRequest(endpoint, body = {}) {
+  if (!isAdmin) { showToast('⛔ Доступ заборонено'); return null; }
+  try {
+    const res = await fetch('/api/admin/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...body }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch (e) { showToast('❌ ' + e.message); return null; }
+}
+
+const PRODUCTS = [
+  {id:1, name:'Чорнобривці класичні',      desc:'Пелюстки, карпатський мед, лимон',         emoji:'🌼', weight:'200 г', price:320, cat:'marigold', badge:'Хіт',       bg:'p-img-gold'},
+  {id:2, name:'Чорнобривці з імбиром',      desc:'Квіти, мед, свіжий імбир, кориця',         emoji:'🌼', weight:'200 г', price:350, cat:'marigold', badge:null,        bg:'p-img-gold'},
+  {id:3, name:'Чорнобривці та троянда',     desc:'Суміш пелюсток, мед, ванільний цукор',     emoji:'🌼', weight:'180 г', price:380, cat:'marigold', badge:'Новинка',   bg:'p-img-gold'},
+  {id:4, name:'Набір «Квіткова колекція»',  desc:'3 баночки: чорнобривці, троянда, лаванда', emoji:'🎁', weight:'3×180 г',price:990, cat:'marigold', badge:'Подарунок', bg:'p-img-gold'},
+  {id:5, name:'Трояндова пелюстка',         desc:'Садові троянди, мед, лимонний сік',        emoji:'🌹', weight:'200 г', price:340, cat:'flower',   badge:null,        bg:'p-img-warm'},
+  {id:6, name:'Лаванда і мед',              desc:'Справжня лаванда, акацієвий мед',          emoji:'💜', weight:'150 г', price:360, cat:'flower',   badge:'Хіт',       bg:'p-img-warm'},
+  {id:7, name:'Бузина з лимоном',           desc:'Чорна бузина, лимон, мед',                 emoji:'🌸', weight:'200 г', price:310, cat:'flower',   badge:null,        bg:'p-img-warm'},
+  {id:8, name:'Чорна смородина',            desc:'Свіжа смородина, мед, чебрець',            emoji:'🫐', weight:'250 г', price:290, cat:'berry',    badge:null,        bg:'p-img-green'},
+  {id:9, name:'Малина з м\'ятою',           desc:'Садова малина, свіжа м\'ята, мед',         emoji:'🍓', weight:'250 г', price:280, cat:'berry',    badge:null,        bg:'p-img-green'},
+  {id:10,name:'Аґрус з базиліком',          desc:'Зелений аґрус, базилік, лимон',            emoji:'🍈', weight:'250 г', price:270, cat:'berry',    badge:'Новинка',   bg:'p-img-green'},
+  {id:11,name:'Кропива з лимоном',          desc:'Молода кропива, лимон, мед, імбир',        emoji:'🌿', weight:'200 г', price:300, cat:'herb',     badge:'Хіт',       bg:'p-img-green'},
+  {id:12,name:'М\'ята і чебрець',           desc:'Свіжа м\'ята, чебрець, яблуко, мед',      emoji:'🍃', weight:'180 г', price:290, cat:'herb',     badge:null,        bg:'p-img-green'},
+];
+
+let cart = {}, currentCat = 'all';
+
+function renderProducts() {
+  const items = currentCat === 'all' ? PRODUCTS : PRODUCTS.filter(p => p.cat === currentCat);
+  document.getElementById('productsGrid').innerHTML = items.map(p => {
+    const inCart = cart[p.id] || 0;
+    return `<div class="p-card">
+      <div class="p-img ${p.bg}">
+        ${p.badge ? `<div class="p-badge${p.badge==='Новинка'?' new':''}">${p.badge}</div>` : ''}
+        ${p.emoji}
+      </div>
+      <div class="p-body">
+        <div class="p-name">${p.name}</div>
+        <div class="p-weight">⚖️ ${p.weight}</div>
+        <div class="p-desc">${p.desc}</div>
+        <div class="p-footer">
+          <div class="p-price">${p.price} <span>₴</span></div>
+          ${inCart > 0
+            ? `<div class="in-cart" style="display:flex">✓ У кошику (${inCart})</div>`
+            : `<button class="add-btn" onclick="addToCart(${p.id})">＋ Додати</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterProd(el, cat) {
+  document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active'); currentCat = cat; renderProducts();
+}
+
+function cartCount() { return Object.values(cart).reduce((a,b)=>a+b,0); }
+function cartTotal() { return Object.entries(cart).reduce((s,[id,q])=>{ const p=PRODUCTS.find(p=>p.id==id); return s+(p?p.price*q:0); },0); }
+
+function updateCartUI() {
+  const n = cartCount(), el = document.getElementById('cartCount');
+  el.textContent = n; el.className = 'cnt' + (n > 0 ? ' show' : '');
+}
+
+function addToCart(id) {
+  cart[id] = (cart[id]||0)+1; updateCartUI(); renderProducts();
+  showToast('🫙 «' + PRODUCTS.find(p=>p.id==id).name + '» додано');
+}
+
+function changeQty(id, d) {
+  if (!cart[id]) return; cart[id] += d;
+  if (cart[id] <= 0) delete cart[id];
+  updateCartUI(); renderCart(); renderProducts();
+}
+
+function renderCart() {
+  const body = document.getElementById('drawerBody'), foot = document.getElementById('drawerFoot');
+  const items = Object.entries(cart);
+  if (!items.length) {
+    body.innerHTML = `<div class="cart-empty"><div class="emo">🫙</div><p>Кошик порожній.<br>Оберіть варення у каталозі!</p></div>`;
+    foot.style.display = 'none'; return;
+  }
+  body.innerHTML = items.map(([id,qty]) => {
+    const p = PRODUCTS.find(p=>p.id==id); if (!p) return '';
+    return `<div class="c-item">
+      <div class="c-emo">${p.emoji}</div>
+      <div class="c-info">
+        <div class="c-name">${p.name}</div>
+        <div class="c-sub">${p.weight} · ${p.price} ₴/шт</div>
+        <div class="qty-row">
+          <button class="q-btn" onclick="changeQty(${id},-1)">−</button>
+          <span class="q-num">${qty}</span>
+          <button class="q-btn" onclick="changeQty(${id},1)">+</button>
+        </div>
+      </div>
+      <div class="c-price">${(p.price*qty).toLocaleString('uk')} ₴</div>
+    </div>`;
+  }).join('');
+  foot.style.display = 'block';
+  document.getElementById('totalVal').textContent = cartTotal().toLocaleString('uk') + ' ₴';
+}
+
+function openCart() { document.getElementById('overlay').classList.add('open'); document.getElementById('drawer').classList.add('open'); renderCart(); }
+function closeCart() { document.getElementById('overlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
+
+// ─── ОПЛАТА MONOBANK ───
+function openPayModal() {
+  document.getElementById('paySum').textContent = cartTotal().toLocaleString('uk');
+  const names = Object.entries(cart).map(([id])=>PRODUCTS.find(p=>p.id==id)?.name).filter(Boolean);
+  document.getElementById('payDesc').textContent = names.slice(0,2).join(', ') + (names.length>2 ? ` та ще ${names.length-2}` : '');
+  document.getElementById('payModal').classList.add('open');
+}
+function closePay() { document.getElementById('payModal').classList.remove('open'); }
+
+async function submitOrder() {
+  const name = document.getElementById('payName').value.trim();
+  const phone = document.getElementById('payPhone').value.trim();
+  const address = document.getElementById('payAddress').value.trim();
+
+  if (!name || !phone || !address) {
+    showToast('⚠️ Заповніть усі поля');
+    return;
+  }
+
+  const items = Object.entries(cart).map(([id, qty]) => {
+    const p = PRODUCTS.find(x => x.id == id);
+    return {
+      name: p.name,
+      qty: qty,
+      price: p.price
+    };
+  });
+
+  const total = cartTotal();
+
+  try {
+    const res = await fetch("/order", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name,
+        phone,
+        address,
+        items,
+        total
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.ok) {
+      showToast("✅ Замовлення створено!");
+      cart = {};
+      updateCartUI();
+      closePay();
+      closeCart();
+    } else {
+      showToast("❌ Помилка створення замовлення");
+    }
+
+  } catch (e) {
+    console.error(e);
+    showToast("❌ Сервер недоступний");
+  }
+}
+document.getElementById('payModal').addEventListener('click', function(e){if(e.target===this)closePay();});
+
+// ─── АДМІН ───
+function openAdmin() {
+  if (!isAdmin) { showToast('⛔ Доступ заборонено'); return; }
+  document.getElementById('adminProds').innerHTML = PRODUCTS.map(p=>`
+    <div class="a-prod">
+      <div class="a-prod-emo">${p.emoji}</div>
+      <div class="a-prod-name">${p.name}</div>
+      <div class="a-prod-w">${p.weight}</div>
+      <div class="a-prod-price">${p.price} ₴</div>
+      <div class="a-prod-acts">
+        <button class="a-act" onclick="editProduct(${p.id})">✏️</button>
+        <button class="a-act del" onclick="deleteProduct(${p.id})">🗑️</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('adminModal').classList.add('open');
+}
+function closeAdmin() { document.getElementById('adminModal').classList.remove('open'); }
+
+async function deleteProduct(id) {
+  if (!confirm('Видалити товар?')) return;
+  const r = await adminRequest('product/delete', {productId:id});
+  if (r) showToast('🗑️ Видалено');
+}
+async function editProduct(id) {
+  const p = prompt('Нова ціна (₴):'); if (!p||isNaN(p)) return;
+  const r = await adminRequest('product/update', {productId:id, price:+p});
+  if (r) showToast('✏️ Ціну оновлено');
+}
+document.getElementById('adminModal').addEventListener('click', function(e){if(e.target===this)closeAdmin();});
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+renderProducts();
+</script>
+</body>
+</html>
+
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+}
