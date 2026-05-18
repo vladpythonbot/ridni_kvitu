@@ -74,8 +74,10 @@ async def main():
     await dp.start_polling(bot)
 
 
+# Удалите строки с uvicorn и port. Оставьте только это:
 if __name__ == "__main__":
-    # Считываем порт, который выдал Railway, иначе берем 8000 по умолчанию
-    port = int(os.environ.get("PORT", 8000))
-
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    try:
+        print('BOT STARTED')
+        asyncio.run(dp.start_polling(bot))
+    except KeyboardInterrupt:
+        print('BOT STOPPED')
