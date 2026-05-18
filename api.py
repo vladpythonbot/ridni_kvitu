@@ -5,33 +5,33 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import os
 
-
 app = FastAPI()
-
-Base.metadata.create_all(bind=engine)
-
-
-
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
+# 🔥 создаём таблицы при старте
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+
+
 @app.get("/")
 def home():
-    return FileResponse("frontend/index.html")
+    return FileResponse(os.path.join(BASE_DIR, "frontend", "index.html"))
 
 
-@app.post('/order')
+@app.post("/order")
 def create_order(data: dict):
     db = SessionLocal()
 
     order = Order(
-        name=data['name'],
-        phone=data['phone'],
-        items=data['items'],
-        total=data['total']
+        name=data["name"],
+        phone=data["phone"],
+        items=data["items"],
+        total=data["total"]
     )
 
     db.add(order)
@@ -39,4 +39,4 @@ def create_order(data: dict):
     db.refresh(order)
     db.close()
 
-    return {'ok': True, 'order_id': order.id}
+    return {"ok": True, "order_id": order.id}
