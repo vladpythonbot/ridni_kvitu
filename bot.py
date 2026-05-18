@@ -1,76 +1,76 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import List
-import os
-from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    WebAppInfo
+)
 
-load_dotenv()
+import asyncio
 
-raw_admins = os.getenv("ADMIN_IDS", "")
-ADMIN_IDS = set(map(int, raw_admins.split(","))) if raw_admins else set()
+from config import BOT_TOKEN, ADMIN_ID
 
-app = FastAPI()
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
 
+# 🔥 ПОСЛЕ ДЕПЛОЯ НА RAILWAY ВСТАВЬ СЮДА СВОЙ HTTPS URL
+WEBAPP_URL= "https://ridni-kvitu-production.up.railway.app"
 
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
-
-
-class Item(BaseModel):
-    name: str
-    qty: int
-    price: int
-
-
-class Order(BaseModel):
-    name: str
-    phone: str
-    address: str
-    items: List[Item]
-    total: int
+PRODUCTS = [
+    '🌼 Чорнобривці',
+    '🌹 Троянда',
+    '🫐 Смородина',
+    '💜 Лаванда'
+]
 
 
-class AdminChange(BaseModel):
-    master_id: int
-    new_admin_id: int
+@dp.message(Command('start'))
+async def start(msg: types.Message):
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text='🫙 Відкрити магазин',
+                    web_app=WebAppInfo(url=WEBAPP_URL)
+                )
+            ]
+        ]
+    )
+
+    await msg.answer(
+        '🌸 <b>Вітаю в Рідні квіти!</b>\n\n'
+        'Крафтове варення з квітів та ягід 🍯',
+        reply_markup=kb
+    )
 
 
-# ======================
-# ADMIN CHECK
-# ======================
-@app.get("/check-admin")
-def check_admin(userId: int):
-    return {"isAdmin": userId in ADMIN_IDS}
+@dp.message(Command('catalog'))
+async def catalog(msg: types.Message):
+
+    text = '📦 <b>Наші товари:</b>\n\n' + '\n'.join(PRODUCTS)
+
+    await msg.answer(text)
 
 
-# ======================
-# ORDER
-# ======================
-@app.post("/order")
-def create_order(order: Order):
-    print("NEW ORDER:", order)
-    return {"ok": True}
+async def notify_admin(text: str):
+    await bot.send_message(ADMIN_ID, text)
 
 
-# ======================
-# ADMIN ADD
-# ======================
-@app.post("/admin/add")
-def add_admin(data: AdminChange):
-    if data.master_id not in ADMIN_IDS:
-        return {"ok": False, "error": "no access"}
+@dp.message(Command('test'))
+async def test(msg: types.Message):
 
-    ADMIN_IDS.add(data.new_admin_id)
-    return {"ok": True}
+    await notify_admin('🆕 Тестове замовлення!')
+
+    await msg.answer('✅ Адміну відправлено повідомлення')
 
 
-# ======================
-# ADMIN REMOVE
-# ======================
-@app.post("/admin/remove")
-def remove_admin(data: AdminChange):
-    if data.master_id not in ADMIN_IDS:
-        return {"ok": False, "error": "no access"}
+async def main():
 
-    ADMIN_IDS.discard(data.new_admin_id)
-    return {"ok": True}
+    print('BOT STARTED')
+
+    await dp.start_polling(bot)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
