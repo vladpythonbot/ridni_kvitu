@@ -1,76 +1,76 @@
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
-from aiogram.types import (
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    WebAppInfo
-)
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List
+import os
+from dotenv import load_dotenv
 
-import asyncio
+load_dotenv()
 
-from config import BOT_TOKEN, ADMIN_ID
+raw_admins = os.getenv("ADMIN_IDS", "")
+ADMIN_IDS = set(map(int, raw_admins.split(","))) if raw_admins else set()
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-
-# 🔥 ПОСЛЕ ДЕПЛОЯ НА RAILWAY ВСТАВЬ СЮДА СВОЙ HTTPS URL
-WEBAPP_URL = "https://YOUR-DOMAIN.up.railway.app"
-
-PRODUCTS = [
-    '🌼 Чорнобривці',
-    '🌹 Троянда',
-    '🫐 Смородина',
-    '💜 Лаванда'
-]
+app = FastAPI()
 
 
-@dp.message(Command('start'))
-async def start(msg: types.Message):
-
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text='🫙 Відкрити магазин',
-                    web_app=WebAppInfo(url=WEBAPP_URL)
-                )
-            ]
-        ]
-    )
-
-    await msg.answer(
-        '🌸 <b>Вітаю в Рідні квіти!</b>\n\n'
-        'Крафтове варення з квітів та ягід 🍯',
-        reply_markup=kb
-    )
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
-@dp.message(Command('catalog'))
-async def catalog(msg: types.Message):
-
-    text = '📦 <b>Наші товари:</b>\n\n' + '\n'.join(PRODUCTS)
-
-    await msg.answer(text)
+class Item(BaseModel):
+    name: str
+    qty: int
+    price: int
 
 
-async def notify_admin(text: str):
-    await bot.send_message(ADMIN_ID, text)
+class Order(BaseModel):
+    name: str
+    phone: str
+    address: str
+    items: List[Item]
+    total: int
 
 
-@dp.message(Command('test'))
-async def test(msg: types.Message):
-
-    await notify_admin('🆕 Тестове замовлення!')
-
-    await msg.answer('✅ Адміну відправлено повідомлення')
+class AdminChange(BaseModel):
+    master_id: int
+    new_admin_id: int
 
 
-async def main():
+# ======================
+# ADMIN CHECK
+# ======================
+@app.get("/check-admin")
+def check_admin(userId: int):
+    return {"isAdmin": userId in ADMIN_IDS}
 
-    print('BOT STARTED')
 
-    await dp.start_polling(bot)
+# ======================
+# ORDER
+# ======================
+@app.post("/order")
+def create_order(order: Order):
+    print("NEW ORDER:", order)
+    return {"ok": True}
 
 
-if __name__ == '__main__':
-    asyncio.run(main())
+# ======================
+# ADMIN ADD
+# ======================
+@app.post("/admin/add")
+def add_admin(data: AdminChange):
+    if data.master_id not in ADMIN_IDS:
+        return {"ok": False, "error": "no access"}
+
+    ADMIN_IDS.add(data.new_admin_id)
+    return {"ok": True}
+
+
+# ======================
+# ADMIN REMOVE
+# ======================
+@app.post("/admin/remove")
+def remove_admin(data: AdminChange):
+    if data.master_id not in ADMIN_IDS:
+        return {"ok": False, "error": "no access"}
+
+    ADMIN_IDS.discard(data.new_admin_id)
+    return {"ok": True}
