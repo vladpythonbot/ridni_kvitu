@@ -1,7 +1,8 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
 @app.get("/")
 def home():
-    return {"status": "OK"}
+    return FileResponse("frontend/index.html")
