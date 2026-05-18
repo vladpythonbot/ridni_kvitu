@@ -14,7 +14,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # 🔥 ПОСЛЕ ДЕПЛОЯ НА RAILWAY ВСТАВЬ СЮДА СВОЙ HTTPS URL
-WEBAPP_URL = "https://YOUR-DOMAIN.up.railway.app"
+WEBAPP_URL= "https://ridni-kvitu-production.up.railway.app"
 
 PRODUCTS = [
     '🌼 Чорнобривці',
