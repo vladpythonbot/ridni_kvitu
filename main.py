@@ -5,27 +5,17 @@ from typing import List
 import os
 from dotenv import load_dotenv
 
-# ======================
-# LOAD ENV
-# ======================
 load_dotenv()
 
 raw_admins = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = set(map(int, raw_admins.split(","))) if raw_admins else set()
 
-# ======================
-# APP
-# ======================
 app = FastAPI()
 
-# ======================
-# STATIC FRONTEND
-# ======================
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
-# ======================
-# MODELS
-# ======================
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+
+
 class Item(BaseModel):
     name: str
     qty: int
