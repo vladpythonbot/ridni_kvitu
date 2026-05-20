@@ -807,31 +807,42 @@ function renderCart() {
   `;
   updateMainButton();
 }
+async function submitOrder() {
+    const name = document.getElementById('payName').value.trim();
+    const phone = document.getElementById('payPhone').value.trim();
+    const address = document.getElementById('payAddress').value.trim();
+    const comment = document.getElementById('payComment').value.trim();
 
-// ══ ORDER / MONOBANK ══
-function submitOrder() {
-  const name = document.getElementById('payName').value.trim();
-  const phone = document.getElementById('payPhone').value.trim();
-  const address = document.getElementById('payAddress').value.trim();
-  const comment = document.getElementById('payComment').value.trim();
-  if (!name || !phone || !address) { showToast('⚠️ Заповніть усі поля'); return; }
-  const total = cartTotal();
-  const commentPart = comment ? ' | ' + comment : '';
-  // Замініть XXXXXXXXX на ваш Monobank Jar ID з https://send.monobank.ua/
-  const monoLink = `https://send.monobank.ua/jar/XXXXXXXXX?amount=${total*100}&comment=${encodeURIComponent('Замовлення: ' + name + ', ' + phone + ', ' + address + commentPart)}`;
-  if (tg) {
-    tg.openLink(monoLink);
-  } else {
-    window.open(monoLink, '_blank');
-  }
-  cart = {};
-  updateCartBadge();
-  renderProducts();
-  showToast('✅ Замовлення оформлено!');
-  if (tg) tg.HapticFeedback?.notificationOccurred('success');
-  setTimeout(() => goTab('shop'), 800);
+    if (!name || !phone || !address) {
+        showToast('⚠️ Заповніть обов\'язкові поля');
+        return;
+    }
+
+    const orderData = {
+        action: "new_order",
+        name: name,
+        phone: phone,
+        address: address,
+        comment: comment,
+        total: cartTotal(),
+        items: Object.entries(cart).map(([id, qty]) => {
+            const p = PRODUCTS.find(prod => prod.id == id);
+            return {
+                name: p ? p.name : 'Товар',
+                qty: qty,
+                price: p ? p.price : 0
+            };
+        })
+    };
+
+    if (tg) {
+        tg.sendData(JSON.stringify(orderData));  // Відправляємо в бот
+        tg.close();                              // Закриваємо Mini App
+    } else {
+        console.log("Order data:", orderData);
+        alert("Дані відправлено (тестовий режим)");
+    }
 }
-
 // ══ ADMIN ══
 function renderAdminProds() {
   document.getElementById('adminProds').innerHTML = PRODUCTS.map(p => `
