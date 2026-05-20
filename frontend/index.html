@@ -337,9 +337,9 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
 
 <section class="hero">
   <div class="hero-text">
-    <div class="hero-tag">Харків · Крафтове варення</div>
-    <h1>Варення з <em>чорнобривців</em> — смак сонця у баночці</h1>
-    <p class="hero-desc">Готуємо вручну з квітів, зібраних у власному саду. Без барвників і консервантів — лише квіти, мед і любов.</p>
+    <div class="hero-tag">Маленька майстерня · З любов'ю</div>
+    <h1>Варення з квітів — <em>живий смак</em> саду у баночці</h1>
+    <p class="hero-desc">Чорнобривці, м'ята, лісова фіалка та імеретинський шафран — варимо вручну з квітів, зібраних власноруч. Без барвників, без консервантів.</p>
     <div class="hero-actions">
       <button class="btn-primary" onclick="document.getElementById('catalog').scrollIntoView({behavior:'smooth'})">Обрати варення</button>
       <button class="btn-ghost" onclick="document.getElementById('story').scrollIntoView({behavior:'smooth'})">Наша історія</button>
@@ -347,7 +347,7 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
   </div>
   <div class="hero-visual">
     <div class="hero-blob">🫙</div>
-    <div class="hero-sticker"><strong>100%</strong>натуральний склад</div>
+    <div class="hero-sticker"><strong>30 мл</strong>кожна баночка</div>
     <div class="hero-sticker-2">🌼 З чорнобривців</div>
   </div>
 </section>
@@ -355,24 +355,24 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
 <div class="marquee-wrap">
   <div class="marquee-track">
     <span class="marquee-item">Варення з чорнобривців</span>
-    <span class="marquee-item">Кропивне з лимоном</span>
-    <span class="marquee-item">Трояндова пелюстка</span>
-    <span class="marquee-item">Чорна смородина</span>
-    <span class="marquee-item">Бузина з імбиром</span>
-    <span class="marquee-item">Лаванда і мед</span>
+    <span class="marquee-item">Варення з м'яти</span>
+    <span class="marquee-item">Фіалка лісова</span>
+    <span class="marquee-item">Імеретинський шафран</span>
+    <span class="marquee-item">Ручна робота</span>
+    <span class="marquee-item">Харківська область</span>
     <span class="marquee-item">Варення з чорнобривців</span>
-    <span class="marquee-item">Кропивне з лимоном</span>
-    <span class="marquee-item">Трояндова пелюстка</span>
-    <span class="marquee-item">Чорна смородина</span>
-    <span class="marquee-item">Бузина з імбиром</span>
-    <span class="marquee-item">Лаванда і мед</span>
+    <span class="marquee-item">Варення з м'яти</span>
+    <span class="marquee-item">Фіалка лісова</span>
+    <span class="marquee-item">Імеретинський шафран</span>
+    <span class="marquee-item">Ручна робота</span>
+    <span class="marquee-item">Харківська область</span>
   </div>
 </div>
 
 <div class="features">
   <div class="feat"><div class="feat-icon">🌼</div><div><div class="feat-lbl">Основа</div><div class="feat-val">Чорнобривці з саду</div></div></div>
-  <div class="feat"><div class="feat-icon">🍯</div><div><div class="feat-lbl">Без цукру</div><div class="feat-val">Лише мед і квіти</div></div></div>
-  <div class="feat"><div class="feat-icon">🫙</div><div><div class="feat-lbl">Термін</div><div class="feat-val">1 рік без холодильника</div></div></div>
+  <div class="feat"><div class="feat-icon">🫙</div><div><div class="feat-lbl">Приготування</div><div class="feat-val">Ручна робота</div></div></div>
+  <div class="feat"><div class="feat-icon">🍬</div><div><div class="feat-lbl">Склад</div><div class="feat-val">Квіти, цукор, любов</div></div></div>
   <div class="feat"><div class="feat-icon">🚚</div><div><div class="feat-lbl">Доставка</div><div class="feat-val">Нова Пошта по Україні</div></div></div>
 </div>
 
@@ -385,24 +385,23 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
     <button class="f-btn active" onclick="filterProd(this,'all')">Усі</button>
     <button class="f-btn" onclick="filterProd(this,'marigold')">🌼 Чорнобривці</button>
     <button class="f-btn" onclick="filterProd(this,'flower')">🌸 Квіткові</button>
-    <button class="f-btn" onclick="filterProd(this,'berry')">🫐 Ягідні</button>
-    <button class="f-btn" onclick="filterProd(this,'herb')">🌿 Трав'яні</button>
+    <button class="f-btn" onclick="filterProd(this,'spice')">🌿 Спеції</button>
   </div>
   <div class="products-grid" id="productsGrid"></div>
 </section>
 
 <div class="marigold-feature" id="story">
   <div class="mf-visual">
-    <div class="mf-block"><div class="mf-block-icon">🌼</div><div class="mf-block-title">Чорнобривці</div><div class="mf-block-text">Збираємо вручну на світанку, коли квіти найароматніші</div></div>
-    <div class="mf-block"><div class="mf-block-icon">🍯</div><div class="mf-block-title">Карпатський мед</div><div class="mf-block-text">Замість цукру — натуральний мед від перевірених пасічників</div></div>
-    <div class="mf-block"><div class="mf-block-icon">🫙</div><div class="mf-block-title">Ручна робота</div><div class="mf-block-text">Кожна баночка варена у мідному казанку на відкритому вогні</div></div>
-    <div class="mf-block"><div class="mf-block-icon">💛</div><div class="mf-block-title">З любов'ю</div><div class="mf-block-text">Рецепти передаються у нашій родині вже три покоління</div></div>
+    <div class="mf-block"><div class="mf-block-icon">🌼</div><div class="mf-block-title">Чорнобривці</div><div class="mf-block-text">Збираємо вручну — квіти, що лікують і дають неповторний медовий аромат</div></div>
+    <div class="mf-block"><div class="mf-block-icon">🌿</div><div class="mf-block-title">М'ята</div><div class="mf-block-text">Свіжа садова м'ята — прохолода і легкість у кожній ложечці</div></div>
+    <div class="mf-block"><div class="mf-block-icon">💜</div><div class="mf-block-title">Лісова фіалка</div><div class="mf-block-text">Ніжний фіолетовий цвіт — рідкісне варення з лісових галявин</div></div>
+    <div class="mf-block"><div class="mf-block-icon">🟡</div><div class="mf-block-title">Шафран</div><div class="mf-block-text">Імеретинський шафран із пелюсток чорнобривців — мамин рецепт</div></div>
   </div>
   <div class="mf-text">
-    <div class="sec-tag">Чому чорнобривці?</div>
-    <h2 class="sec-title">Квіти, що <em>зцілюють</em> і радують</h2>
-    <p>Чорнобривці — це не просто краса. Вони містять антиоксиданти, мають протизапальні властивості і дають неповторний квітково-медовий смак, який не сплутаєш ні з чим.</p>
-    <p style="margin-top:14px">Ми вирощуємо їх самі, без хімії, і переробляємо того ж дня. Тому у кожній баночці — живий смак літнього саду.</p>
+    <div class="sec-tag">Наша історія</div>
+    <h2 class="sec-title">Квіти, зібрані з <em>душею</em></h2>
+    <p>Усе починалося з маминого рецепту варення з чорнобривців. Сьогодні ми варимо маленькими партіями чотири види варення — кожне унікальне і зроблене вручну на Харківщині.</p>
+    <p style="margin-top:14px">Жодних барвників, жодних консервантів. Тільки квіти, цукор і власні рецепти.</p>
     <button class="btn-primary" style="margin-top:28px;background:var(--gold-mid);color:var(--bark)" onclick="document.getElementById('catalog').scrollIntoView({behavior:'smooth'})">Спробувати</button>
   </div>
 </div>
@@ -437,9 +436,9 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
     <h2 class="sec-title">Ми завжди <em>поруч</em></h2>
   </div>
   <div class="contacts-grid">
-    <div class="c-card"><div class="c-card-icon">📍</div><div class="c-card-lbl">Адреса</div><div class="c-card-val">Харків<br>вул. Садова, 14</div></div>
-    <div class="c-card"><div class="c-card-icon">📞</div><div class="c-card-lbl">Телефон</div><div class="c-card-val">+38 (050) 123-45-67</div></div>
-    <div class="c-card"><div class="c-card-icon">💬</div><div class="c-card-lbl">Telegram</div><div class="c-card-val">@ridnikvity_jam</div></div>
+    <div class="c-card"><div class="c-card-icon">📍</div><div class="c-card-lbl">Адреса</div><div class="c-card-val">Харківська область</div></div>
+    <div class="c-card"><div class="c-card-icon">📞</div><div class="c-card-lbl">Телефон</div><div class="c-card-val">+380 98 671 71 30</div></div>
+    <div class="c-card"><div class="c-card-icon">💬</div><div class="c-card-lbl">Telegram</div><div class="c-card-val"><a href="https://t.me/ridni_kvitu" target="_blank" style="color:var(--bark);text-decoration:none">@ridni_kvitu</a></div></div>
     <div class="c-card"><div class="c-card-icon">📦</div><div class="c-card-lbl">Доставка</div><div class="c-card-val">Нова Пошта<br>по всій Україні</div></div>
   </div>
 </section>
@@ -450,7 +449,7 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
       <div class="logo-jar" style="background:rgba(245,200,66,.12);border-color:rgba(245,200,66,.2)">🫙</div>
       Рідні квіти
     </div>
-    <p>Крафтове варення з чорнобривців та інших квітів — приготоване вручну у Харкові з натуральних інгредієнтів.</p>
+    <p>Крафтове варення з квітів — чорнобривці, м'ята, лісова фіалка та імеретинський шафран. Харківська область.</p>
   </div>
   <div class="f-col">
     <h4>Навігація</h4>
@@ -460,10 +459,10 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
     <a href="#contacts">Контакти</a>
   </div>
   <div class="f-col">
-    <h4>Допомога</h4>
-    <a href="#">Доставка і оплата</a>
-    <a href="#">Склад і зберігання</a>
-    <a href="#">Питання та відповіді</a>
+    <h4>Зв'язок</h4>
+    <a href="https://t.me/ridni_kvitu" target="_blank">Telegram @ridni_kvitu</a>
+    <a href="tel:+380986717130">+380 98 671 71 30</a>
+    <a href="#">Нова Пошта по Україні</a>
   </div>
 </footer>
 <div class="footer-bottom">
@@ -508,6 +507,7 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
         <input class="pay-input" type="text" placeholder="Ваше ім'я та прізвище" id="payName">
         <input class="pay-input" type="tel" placeholder="Номер телефону" id="payPhone">
         <input class="pay-input" type="text" placeholder="Місто та відділення Нової Пошти" id="payAddress">
+        <textarea class="pay-input" placeholder="Коментар до замовлення (необов'язково)" id="payComment" rows="3" style="resize:none;line-height:1.5"></textarea>
         <div class="pay-note">💳 Після підтвердження ви отримаєте посилання на оплату через Monobank. Відправка протягом 1–2 робочих днів після оплати.</div>
         <button class="pay-submit" onclick="submitOrder()">
           <div class="mono-logo">mono</div>
@@ -547,19 +547,12 @@ footer{background:var(--bark);padding:60px 64px 36px;display:grid;grid-template-
 <div class="toast" id="toast"></div>
 
 <script>
+// ─── АДМІН: замініть 123456789 на свій Telegram ID ───
+const ADMIN_IDS = [123456789];
 const tg = window.Telegram?.WebApp;
 const userId = tg?.initDataUnsafe?.user?.id ?? null;
-
-if (tg && userId) {
-  fetch(`/check-admin?userId=${userId}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.isAdmin) {
-        document.getElementById('adminNavBtn').style.display = 'flex';
-      }
-    })
-    .catch(err => console.error("Admin check error:", err));
-}
+const isAdmin = userId !== null && ADMIN_IDS.includes(userId);
+if (isAdmin) document.getElementById('adminNavBtn').style.display = 'flex';
 
 async function adminRequest(endpoint, body = {}) {
   if (!isAdmin) { showToast('⛔ Доступ заборонено'); return null; }
@@ -575,18 +568,10 @@ async function adminRequest(endpoint, body = {}) {
 }
 
 const PRODUCTS = [
-  {id:1, name:'Чорнобривці класичні',      desc:'Пелюстки, карпатський мед, лимон',         emoji:'🌼', weight:'200 г', price:320, cat:'marigold', badge:'Хіт',       bg:'p-img-gold'},
-  {id:2, name:'Чорнобривці з імбиром',      desc:'Квіти, мед, свіжий імбир, кориця',         emoji:'🌼', weight:'200 г', price:350, cat:'marigold', badge:null,        bg:'p-img-gold'},
-  {id:3, name:'Чорнобривці та троянда',     desc:'Суміш пелюсток, мед, ванільний цукор',     emoji:'🌼', weight:'180 г', price:380, cat:'marigold', badge:'Новинка',   bg:'p-img-gold'},
-  {id:4, name:'Набір «Квіткова колекція»',  desc:'3 баночки: чорнобривці, троянда, лаванда', emoji:'🎁', weight:'3×180 г',price:990, cat:'marigold', badge:'Подарунок', bg:'p-img-gold'},
-  {id:5, name:'Трояндова пелюстка',         desc:'Садові троянди, мед, лимонний сік',        emoji:'🌹', weight:'200 г', price:340, cat:'flower',   badge:null,        bg:'p-img-warm'},
-  {id:6, name:'Лаванда і мед',              desc:'Справжня лаванда, акацієвий мед',          emoji:'💜', weight:'150 г', price:360, cat:'flower',   badge:'Хіт',       bg:'p-img-warm'},
-  {id:7, name:'Бузина з лимоном',           desc:'Чорна бузина, лимон, мед',                 emoji:'🌸', weight:'200 г', price:310, cat:'flower',   badge:null,        bg:'p-img-warm'},
-  {id:8, name:'Чорна смородина',            desc:'Свіжа смородина, мед, чебрець',            emoji:'🫐', weight:'250 г', price:290, cat:'berry',    badge:null,        bg:'p-img-green'},
-  {id:9, name:'Малина з м\'ятою',           desc:'Садова малина, свіжа м\'ята, мед',         emoji:'🍓', weight:'250 г', price:280, cat:'berry',    badge:null,        bg:'p-img-green'},
-  {id:10,name:'Аґрус з базиліком',          desc:'Зелений аґрус, базилік, лимон',            emoji:'🍈', weight:'250 г', price:270, cat:'berry',    badge:'Новинка',   bg:'p-img-green'},
-  {id:11,name:'Кропива з лимоном',          desc:'Молода кропива, лимон, мед, імбир',        emoji:'🌿', weight:'200 г', price:300, cat:'herb',     badge:'Хіт',       bg:'p-img-green'},
-  {id:12,name:'М\'ята і чебрець',           desc:'Свіжа м\'ята, чебрець, яблуко, мед',      emoji:'🍃', weight:'180 г', price:290, cat:'herb',     badge:null,        bg:'p-img-green'},
+  {id:1, name:'Варення з чорнобривців',    desc:'Пелюстки чорнобривців, мед — класичний квітковий смак',      emoji:'🌼', weight:'30 мл', price:150, cat:'marigold', badge:'Хіт',          bg:'p-img-gold'},
+  {id:2, name:'Варення з м\'яти',           desc:'Свіжа садова м\'ята — прохолодний і ніжний смак',           emoji:'🌿', weight:'30 мл', price:150, cat:'flower',   badge:null,            bg:'p-img-green'},
+  {id:3, name:'Варення з фіалки лісової',  desc:'Ніжна лісова фіалка — рідкісне і делікатне варення',        emoji:'💜', weight:'30 мл', price:150, cat:'flower',   badge:'Рідкісне',      bg:'p-img-warm'},
+  {id:4, name:'Імеретинський шафран',       desc:'Мамин рецепт — справжній шафран із пелюсток чорнобривців', emoji:'🟡', weight:'30 мл', price:150, cat:'spice',    badge:'Мамин рецепт',  bg:'p-img-gold'},
 ];
 
 let cart = {}, currentCat = 'all';
@@ -595,14 +580,15 @@ function renderProducts() {
   const items = currentCat === 'all' ? PRODUCTS : PRODUCTS.filter(p => p.cat === currentCat);
   document.getElementById('productsGrid').innerHTML = items.map(p => {
     const inCart = cart[p.id] || 0;
+    const badgeClass = (p.badge === 'Рідкісне' || p.badge === 'Мамин рецепт') ? ' new' : '';
     return `<div class="p-card">
       <div class="p-img ${p.bg}">
-        ${p.badge ? `<div class="p-badge${p.badge==='Новинка'?' new':''}">${p.badge}</div>` : ''}
+        ${p.badge ? `<div class="p-badge${badgeClass}">${p.badge}</div>` : ''}
         ${p.emoji}
       </div>
       <div class="p-body">
         <div class="p-name">${p.name}</div>
-        <div class="p-weight">⚖️ ${p.weight}</div>
+        <div class="p-weight">🫙 ${p.weight}</div>
         <div class="p-desc">${p.desc}</div>
         <div class="p-footer">
           <div class="p-price">${p.price} <span>₴</span></div>
@@ -673,63 +659,24 @@ function closeCart() { document.getElementById('overlay').classList.remove('open
 function openPayModal() {
   document.getElementById('paySum').textContent = cartTotal().toLocaleString('uk');
   const names = Object.entries(cart).map(([id])=>PRODUCTS.find(p=>p.id==id)?.name).filter(Boolean);
-  document.getElementById('payDesc').textContent = names.slice(0,2).join(', ') + (names.length>2 ? ` та ще ${names.length-2}` : '');
+  document.getElementById('payDesc').textContent = names.join(', ');
   document.getElementById('payModal').classList.add('open');
 }
 function closePay() { document.getElementById('payModal').classList.remove('open'); }
 
-async function submitOrder() {
+function submitOrder() {
   const name = document.getElementById('payName').value.trim();
   const phone = document.getElementById('payPhone').value.trim();
   const address = document.getElementById('payAddress').value.trim();
-
-  if (!name || !phone || !address) {
-    showToast('⚠️ Заповніть усі поля');
-    return;
-  }
-
-  const items = Object.entries(cart).map(([id, qty]) => {
-    const p = PRODUCTS.find(x => x.id == id);
-    return {
-      name: p.name,
-      qty: qty,
-      price: p.price
-    };
-  });
-
+  const comment = document.getElementById('payComment').value.trim();
+  if (!name || !phone || !address) { showToast('⚠️ Заповніть усі поля'); return; }
   const total = cartTotal();
-
-  try {
-    const res = await fetch("/order", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        name,
-        phone,
-        address,
-        items,
-        total
-      })
-    });
-
-    const data = await res.json();
-
-    if (data.ok) {
-      showToast("✅ Замовлення створено!");
-      cart = {};
-      updateCartUI();
-      closePay();
-      closeCart();
-    } else {
-      showToast("❌ Помилка створення замовлення");
-    }
-
-  } catch (e) {
-    console.error(e);
-    showToast("❌ Сервер недоступний");
-  }
+  const commentPart = comment ? ' | ' + comment : '';
+  // Замініть XXXXXXXXX на ваш Monobank Jar ID з https://send.monobank.ua/
+  const monoLink = `https://send.monobank.ua/jar/XXXXXXXXX?amount=${total*100}&comment=${encodeURIComponent('Замовлення: ' + name + ', ' + phone + ', ' + address + commentPart)}`;
+  closePay(); closeCart();
+  showToast('💳 Переходимо до оплати…');
+  setTimeout(() => window.open(monoLink, '_blank'), 600);
 }
 document.getElementById('payModal').addEventListener('click', function(e){if(e.target===this)closePay();});
 
@@ -773,8 +720,3 @@ renderProducts();
 </script>
 </body>
 </html>
-
-const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-}

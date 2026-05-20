@@ -13,7 +13,8 @@ app = FastAPI()
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-WEBAPP_URL = "https://railway.app"
+WEBAPP_URL = "https://ridnikvitu-production.up.railway.app/"
+
 PRODUCTS = ['🌼 Чорнобривці', '🌹 Троянда', '🫐 Смородина', '💜 Лаванда']
 
 # Хендлеры вашего бота
