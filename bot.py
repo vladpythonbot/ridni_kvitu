@@ -1,6 +1,16 @@
 import asyncio
 import json
 import os
+import uuid
+import logging
+from contextlib import asynccontextmanager
+
+import httpx
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import (
@@ -8,105 +18,205 @@ from aiogram.types import (
     InlineKeyboardButton,
     WebAppInfo
 )
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from contextlib import asynccontextmanager
 
-from config import BOT_TOKEN, ADMIN_ID
+load_dotenv()
 
-# ====================== ІНІЦІАЛІЗАЦІЯ ======================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONO_TOKEN = os.getenv("MONO_TOKEN")
+WEBAPP_URL = os.getenv("WEBAPP_URL")
+
+if not BOT_TOKEN:
+    raise Exception("BOT_TOKEN not found")
+
+if not WEBAPP_URL:
+    raise Exception("WEBAPP_URL not found")
+
+logging.basicConfig(level=logging.INFO)
+
 bot = Bot(token=BOT_TOKEN)
+
 dp = Dispatcher()
 
 
-# FastAPI для віддачі Mini App
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    asyncio.create_task(main_bot())  # запускаємо бота в фоні
+
+    asyncio.create_task(start_bot())
+
     yield
 
 
 app = FastAPI(lifespan=lifespan)
 
-# Підключаємо папку webapp як статичні файли
-app.mount("/static", StaticFiles(directory="webapp"), name="static")
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 
 @app.get("/")
-async def serve_webapp():
-    return FileResponse("webapp/index.html")
+async def index():
+    return FileResponse("frontend/index.html")
 
 
-# ====================== ХЕНДЛЕРИ AIOGRAM ======================
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
-@dp.message(Command('start'))
-async def start(msg: types.Message):
-    kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text='🫙 Відкрити магазин',
-            web_app=WebAppInfo(url=f"{os.getenv('WEBAPP_URL', 'https://ridni-kvitu-production.up.railway.app')}")
-        )
-    ]])
 
-    await msg.answer(
-        '🌸 <b>Вітаю в Рідні квіти!</b>\n\n'
-        'Крафтове варення з квітів та ягід 🍯',
-        reply_markup=kb,
-        parse_mode="HTML"
+async def create_invoice(total, order_id):
+
+    if not MONO_TOKEN:
+        return None
+
+    url = "https://api.monobank.ua/api/merchant/invoice/create"
+
+    headers = {
+        "X-Token": MONO_TOKEN
+    }
+
+    payload = {
+        "amount": total * 100,
+        "ccy": 980,
+        "merchantPaymInfo": {
+            "reference": order_id,
+            "destination": f"Оплата замовлення {order_id}"
+        },
+        "redirectUrl": WEBAPP_URL
+    }
+
+    try:
+
+        async with httpx.AsyncClient() as client:
+
+            response = await client.post(
+                url,
+                json=payload,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                return response.json()
+
+            print(response.text)
+
+            return None
+
+    except Exception as e:
+        print(e)
+        return None
+
+
+@dp.message(Command("start"))
+async def start(message: types.Message):
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🫙 Відкрити магазин",
+                    web_app=WebAppInfo(url=WEBAPP_URL)
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        "🌸 <b>Рідні квіти</b>\n\n"
+        "Крафтове варення та квіти 🍯",
+        reply_markup=kb
     )
 
 
 @dp.message(F.web_app_data)
-async def handle_webapp_order(message: types.Message):
-    """Обробка даних, які приходять з Mini App"""
+async def webapp_data(message: types.Message):
+
     try:
+
         data = json.loads(message.web_app_data.data)
 
-        if data.get("action") == "new_order":
-            items_text = "\n".join([
-                f"• {item['name']} × {item['qty']} — {item['price'] * item['qty']} ₴"
-                for item in data.get("items", [])
-            ])
+        name = str(data.get("name", "")).strip()
+        phone = str(data.get("phone", "")).strip()
+        address = str(data.get("address", "")).strip()
 
-            text = f"""
-🛍 <b>Нове замовлення!</b>
+        total = int(data.get("total", 0))
 
-👤 Ім'я: {data.get('name')}
-📞 Телефон: {data.get('phone')}
-📍 Адреса: {data.get('address')}
+        if not name or not phone or not address:
+            await message.answer("❌ Заповніть всі поля")
+            return
 
-🫙 <b>Товари:</b>
-{items_text}
+        if total <= 0:
+            await message.answer("❌ Невірна сума")
+            return
 
-💰 Сума: <b>{data.get('total', 0)} ₴</b>
-"""
+        order_id = uuid.uuid4().hex[:10]
 
-            if data.get('comment'):
-                text += f"\n💬 Коментар: {data['comment']}"
+        text = (
+            f"🆕 НОВЕ ЗАМОВЛЕННЯ\n\n"
+            f"📦 ID: {order_id}\n"
+            f"👤 {name}\n"
+            f"📞 {phone}\n"
+            f"🏠 {address}\n"
+            f"💰 {total} грн"
+        )
 
-            # Відправляємо адміну
-            await bot.send_message(ADMIN_ID, text, parse_mode="HTML")
+        print(text)
 
-            # Відповідаємо користувачу
+        invoice = await create_invoice(total, order_id)
+
+        if not invoice:
+
             await message.answer(
-                "✅ <b>Замовлення прийнято!</b>\n\n"
-                "Ми скоро з вами зв'яжемося для підтвердження.",
-                parse_mode="HTML"
+                "❌ Помилка створення оплати"
             )
 
+            return
+
+        pay_url = invoice.get("pageUrl")
+
+        pay_kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="💳 Оплатити",
+                        url=pay_url
+                    )
+                ]
+            ]
+        )
+
+        await message.answer(
+            f"✅ Замовлення створено\n\n"
+            f"💰 До оплати: {total} грн",
+            reply_markup=pay_kb
+        )
+
     except Exception as e:
-        print("Помилка обробки WebApp даних:", e)
-        await message.answer("❌ Виникла помилка при обробці замовлення.")
+
+        print(e)
+
+        await message.answer(
+            "❌ Помилка"
+        )
 
 
-# ====================== ЗАПУСК ======================
-async def main_bot():
-    print("🤖 Бот запущений (polling)")
+@app.post("/api/order")
+async def api_order(request: types):
+
+    return JSONResponse({
+        "ok": True
+    })
+
+
+async def start_bot():
+
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
+
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        reload=False
+    )
