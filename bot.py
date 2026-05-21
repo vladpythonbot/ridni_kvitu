@@ -3,12 +3,14 @@ import json
 import os
 import uuid
 import logging
+import sqlite3
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -20,7 +22,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBAPP_URL = os.getenv("WEBAPP_URL")
 
 if not BOT_TOKEN or not WEBAPP_URL:
-    raise Exception("BOT_TOKEN або WEBAPP_URL не знайдено в .env")
+    raise Exception("BOT_TOKEN або WEBAPP_URL не знайдено!")
 
 WEBAPP_URL = WEBAPP_URL.rstrip("/")
 
@@ -30,13 +32,61 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
+# ====================== БАЗА ДАНИХ ======================
+def init_db():
+    conn = sqlite3.connect("shop.db")
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            price INTEGER NOT NULL,
+            emoji TEXT,
+            active INTEGER DEFAULT 1
+        )
+    """)
+    conn.commit()
+    conn.close()
 
+init_db()
+
+def get_all_products():
+    conn = sqlite3.connect("shop.db")
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, price, emoji FROM products WHERE active=1")
+    products = cur.fetchall()
+    conn.close()
+    return products
+
+def add_product(name, price, emoji="🫙"):
+    conn = sqlite3.connect("shop.db")
+    cur = conn.cursor()
+    cur.execute("INSERT INTO products (name, price, emoji) VALUES (?, ?, ?)", (name, price, emoji))
+    conn.commit()
+    conn.close()
+
+def update_product(prod_id, name=None, price=None, emoji=None):
+    conn = sqlite3.connect("shop.db")
+    cur = conn.cursor()
+    if name: cur.execute("UPDATE products SET name=? WHERE id=?", (name, prod_id))
+    if price: cur.execute("UPDATE products SET price=? WHERE id=?", (price, prod_id))
+    if emoji: cur.execute("UPDATE products SET emoji=? WHERE id=?", (emoji, prod_id))
+    conn.commit()
+    conn.close()
+
+def delete_product(prod_id):
+    conn = sqlite3.connect("shop.db")
+    cur = conn.cursor()
+    cur.execute("UPDATE products SET active=0 WHERE id=?", (prod_id,))
+    conn.commit()
+    conn.close()
+
+# ====================== FASTAPI ======================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(start_bot())
-    logger.info("✅ Тестовий режим запущено")
+    logger.info("✅ Сервер з керуванням товарами запущено")
     yield
-
 
 app = FastAPI(lifespan=lifespan)
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
@@ -47,56 +97,59 @@ async def index():
     return FileResponse("frontend/index.html")
 
 
-# ====================== ГЛАВНИЙ ХЕНДЛЕР ======================
+@app.get("/api/products")
+async def api_products():
+    products = get_all_products()
+    return [{"id": p[0], "name": p[1], "price": p[2], "emoji": p[3]} for p in products]
+
+
+# ====================== BOT ======================
 @dp.message(Command("start"))
 async def start(message: types.Message):
     kb = ReplyKeyboardMarkup(
-        keyboard=[[
-            KeyboardButton(text="🫙 Відкрити магазин", web_app=WebAppInfo(url=WEBAPP_URL))
-        ]],
-        resize_keyboard=True,
-        persistent=True
+        keyboard=[[KeyboardButton(text="🫙 Відкрити магазин", web_app=WebAppInfo(url=WEBAPP_URL))]],
+        resize_keyboard=True
     )
-
-    await message.answer(
-        "🌸 <b>Рідні квіти — тестовий режим</b>\n\n"
-        "Натисни кнопку нижче та оформи тестове замовлення.",
-        reply_markup=kb
-    )
+    await message.answer("🌸 <b>Рідні квіти</b>", reply_markup=kb)
 
 
 @dp.message(F.web_app_data)
 async def webapp_data(message: types.Message):
-    """Симуляція оплати"""
     try:
         data = json.loads(message.web_app_data.data)
-
+        items = data.get("items", [])
         name = str(data.get("name", "")).strip()
         phone = str(data.get("phone", "")).strip()
         address = str(data.get("address", "")).strip()
-        total = int(data.get("total", 0))
 
         if not name or not phone or not address:
-            return await message.answer("❌ Заповніть усі обов'язкові поля!")
+            return await message.answer("❌ Заповніть усі поля!")
+
+        total = 0
+        order_list = []
+
+        for item in items:
+            prod = next((p for p in get_all_products() if p[0] == int(item["id"])), None)
+            if prod:
+                qty = int(item["qty"])
+                total += prod[2] * qty
+                order_list.append(f"{prod[1]} × {qty}")
 
         if total < 10:
-            return await message.answer("❌ Мінімальна сума — 10 грн")
+            return await message.answer("❌ Мінімальна сума 10 грн")
 
-        order_id = f"TEST-{uuid.uuid4().hex[:8].upper()}"
+        order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
 
-        # Симуляція успішної оплати
         await message.answer(f"""
-✅ <b>Замовлення #{order_id}</b> успішно оформлено!
+✅ <b>Замовлення #{order_id}</b> прийнято!
 
 👤 {name}
 📞 {phone}
 🏠 {address}
 💰 Сума: <b>{total} ₴</b>
 
-🧪 <i>Тестовий режим — оплата пройшла успішно (симуляція)</i>
+📋 {chr(10).join(order_list)}
 """)
-
-        logger.info(f"ТЕСТОВЕ ЗАМОВЛЕННЯ | {order_id} | {total} грн | {name}")
 
     except Exception as e:
         logger.error(e)
