@@ -5,49 +5,40 @@ import uuid
 import logging
 from contextlib import asynccontextmanager
 
-import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import (
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    WebAppInfo
-)
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-MONO_TOKEN = os.getenv("MONO_TOKEN")
 WEBAPP_URL = os.getenv("WEBAPP_URL")
 
-if not BOT_TOKEN:
-    raise Exception("BOT_TOKEN not found")
+if not BOT_TOKEN or not WEBAPP_URL:
+    raise Exception("BOT_TOKEN або WEBAPP_URL не знайдено в .env")
 
-if not WEBAPP_URL:
-    raise Exception("WEBAPP_URL not found")
+WEBAPP_URL = WEBAPP_URL.rstrip("/")
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+logger = logging.getLogger(__name__)
 
-bot = Bot(token=BOT_TOKEN)
-
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
     asyncio.create_task(start_bot())
-
+    logger.info("✅ Тестовий режим запущено")
     yield
 
 
 app = FastAPI(lifespan=lifespan)
-
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 
@@ -56,167 +47,67 @@ async def index():
     return FileResponse("frontend/index.html")
 
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
-
-
-async def create_invoice(total, order_id):
-
-    if not MONO_TOKEN:
-        return None
-
-    url = "https://api.monobank.ua/api/merchant/invoice/create"
-
-    headers = {
-        "X-Token": MONO_TOKEN
-    }
-
-    payload = {
-        "amount": total * 100,
-        "ccy": 980,
-        "merchantPaymInfo": {
-            "reference": order_id,
-            "destination": f"Оплата замовлення {order_id}"
-        },
-        "redirectUrl": WEBAPP_URL
-    }
-
-    try:
-
-        async with httpx.AsyncClient() as client:
-
-            response = await client.post(
-                url,
-                json=payload,
-                headers=headers
-            )
-
-            if response.status_code == 200:
-                return response.json()
-
-            print(response.text)
-
-            return None
-
-    except Exception as e:
-        print(e)
-        return None
-
-
+# ====================== ГЛАВНИЙ ХЕНДЛЕР ======================
 @dp.message(Command("start"))
 async def start(message: types.Message):
-
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="🫙 Відкрити магазин",
-                    web_app=WebAppInfo(url=WEBAPP_URL)
-                )
-            ]
-        ]
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[
+            KeyboardButton(text="🫙 Відкрити магазин", web_app=WebAppInfo(url=WEBAPP_URL))
+        ]],
+        resize_keyboard=True,
+        persistent=True
     )
 
     await message.answer(
-        "🌸 <b>Рідні квіти</b>\n\n"
-        "Крафтове варення та квіти 🍯",
+        "🌸 <b>Рідні квіти — тестовий режим</b>\n\n"
+        "Натисни кнопку нижче та оформи тестове замовлення.",
         reply_markup=kb
     )
 
 
 @dp.message(F.web_app_data)
 async def webapp_data(message: types.Message):
-
+    """Симуляція оплати"""
     try:
-
         data = json.loads(message.web_app_data.data)
 
         name = str(data.get("name", "")).strip()
         phone = str(data.get("phone", "")).strip()
         address = str(data.get("address", "")).strip()
-
         total = int(data.get("total", 0))
 
         if not name or not phone or not address:
-            await message.answer("❌ Заповніть всі поля")
-            return
+            return await message.answer("❌ Заповніть усі обов'язкові поля!")
 
-        if total <= 0:
-            await message.answer("❌ Невірна сума")
-            return
+        if total < 10:
+            return await message.answer("❌ Мінімальна сума — 10 грн")
 
-        order_id = uuid.uuid4().hex[:10]
+        order_id = f"TEST-{uuid.uuid4().hex[:8].upper()}"
 
-        text = (
-            f"🆕 НОВЕ ЗАМОВЛЕННЯ\n\n"
-            f"📦 ID: {order_id}\n"
-            f"👤 {name}\n"
-            f"📞 {phone}\n"
-            f"🏠 {address}\n"
-            f"💰 {total} грн"
-        )
+        # Симуляція успішної оплати
+        await message.answer(f"""
+✅ <b>Замовлення #{order_id}</b> успішно оформлено!
 
-        print(text)
+👤 {name}
+📞 {phone}
+🏠 {address}
+💰 Сума: <b>{total} ₴</b>
 
-        invoice = await create_invoice(total, order_id)
+🧪 <i>Тестовий режим — оплата пройшла успішно (симуляція)</i>
+""")
 
-        if not invoice:
-
-            await message.answer(
-                "❌ Помилка створення оплати"
-            )
-
-            return
-
-        pay_url = invoice.get("pageUrl")
-
-        pay_kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="💳 Оплатити",
-                        url=pay_url
-                    )
-                ]
-            ]
-        )
-
-        await message.answer(
-            f"✅ Замовлення створено\n\n"
-            f"💰 До оплати: {total} грн",
-            reply_markup=pay_kb
-        )
+        logger.info(f"ТЕСТОВЕ ЗАМОВЛЕННЯ | {order_id} | {total} грн | {name}")
 
     except Exception as e:
-
-        print(e)
-
-        await message.answer(
-            "❌ Помилка"
-        )
-
-
-@app.post("/api/order")
-async def api_order(request: types):
-
-    return JSONResponse({
-        "ok": True
-    })
+        logger.error(e)
+        await message.answer("❌ Помилка обробки замовлення.")
 
 
 async def start_bot():
-
+    logger.info("🤖 Бот запущений")
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-
     import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
-        reload=False
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

@@ -814,9 +814,19 @@ async function submitOrder() {
     const comment = document.getElementById('payComment').value.trim();
 
     if (!name || !phone || !address) {
-        showToast('⚠️ Заповніть обов\'язкові поля');
+        showToast('⚠️ Заповніть обов\'язкові поля (ім\'я, телефон, адреса)');
         return;
     }
+
+    if (cartTotal() <= 0) {
+        showToast('⚠️ Кошик порожній');
+        return;
+    }
+
+    const btn = document.querySelector('.mono-pay-btn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Відправляємо...';
 
     const orderData = {
         action: "new_order",
@@ -835,12 +845,27 @@ async function submitOrder() {
         })
     };
 
-    if (tg) {
-        tg.sendData(JSON.stringify(orderData));  // Відправляємо в бот
-        tg.close();                              // Закриваємо Mini App
-    } else {
-        console.log("Order data:", orderData);
-        alert("Дані відправлено (тестовий режим)");
+    try {
+        if (tg) {
+            tg.sendData(JSON.stringify(orderData));
+            showToast('✅ Замовлення відправлено боту!');
+
+            // Закриваємо через 2.5 секунди
+            setTimeout(() => {
+                tg.close();
+            }, 2500);
+        } else {
+            console.log("Test data:", orderData);
+            alert("Дані відправлено (тест)");
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('❌ Помилка відправки');
+    } finally {
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }, 3000);
     }
 }
 // ══ ADMIN ══
