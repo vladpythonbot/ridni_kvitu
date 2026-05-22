@@ -5,7 +5,6 @@ import uuid
 import logging
 import sqlite3
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -18,11 +17,13 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 load_dotenv()
 
+# ====================== НАЛАШТУВАННЯ ======================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBAPP_URL = os.getenv("WEBAPP_URL")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))   # ← Зміни в .env
 
 if not BOT_TOKEN or not WEBAPP_URL:
-    raise Exception("BOT_TOKEN або WEBAPP_URL не знайдено!")
+    raise Exception("BOT_TOKEN або WEBAPP_URL не знайдено в .env!")
 
 WEBAPP_URL = WEBAPP_URL.rstrip("/")
 
@@ -58,34 +59,20 @@ def get_all_products():
     conn.close()
     return products
 
-def add_product(name, price, emoji="🫙"):
+def add_product(name: str, price: int, emoji: str = "🫙"):
     conn = sqlite3.connect("shop.db")
     cur = conn.cursor()
     cur.execute("INSERT INTO products (name, price, emoji) VALUES (?, ?, ?)", (name, price, emoji))
     conn.commit()
+    prod_id = cur.lastrowid
     conn.close()
-
-def update_product(prod_id, name=None, price=None, emoji=None):
-    conn = sqlite3.connect("shop.db")
-    cur = conn.cursor()
-    if name: cur.execute("UPDATE products SET name=? WHERE id=?", (name, prod_id))
-    if price: cur.execute("UPDATE products SET price=? WHERE id=?", (price, prod_id))
-    if emoji: cur.execute("UPDATE products SET emoji=? WHERE id=?", (emoji, prod_id))
-    conn.commit()
-    conn.close()
-
-def delete_product(prod_id):
-    conn = sqlite3.connect("shop.db")
-    cur = conn.cursor()
-    cur.execute("UPDATE products SET active=0 WHERE id=?", (prod_id,))
-    conn.commit()
-    conn.close()
+    return prod_id
 
 # ====================== FASTAPI ======================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(start_bot())
-    logger.info("✅ Сервер з керуванням товарами запущено")
+    logger.info("✅ Сервер запущено")
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -101,6 +88,30 @@ async def index():
 async def api_products():
     products = get_all_products()
     return [{"id": p[0], "name": p[1], "price": p[2], "emoji": p[3]} for p in products]
+
+
+# Адмін API для додавання товару
+@app.post("/api/admin/add_product")
+async def admin_add_product(request: Request):
+    try:
+        data = await request.json()
+        user_id = data.get("userId")
+
+        if user_id != ADMIN_ID:
+            return JSONResponse({"error": "Access denied"}, status_code=403)
+
+        name = data.get("name")
+        price = int(data.get("price"))
+        emoji = data.get("emoji", "🫙")
+
+        if not name or not price:
+            return JSONResponse({"error": "Invalid data"}, status_code=400)
+
+        prod_id = add_product(name, price, emoji)
+        return {"success": True, "id": prod_id}
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ====================== BOT ======================
@@ -136,7 +147,7 @@ async def webapp_data(message: types.Message):
                 order_list.append(f"{prod[1]} × {qty}")
 
         if total < 10:
-            return await message.answer("❌ Мінімальна сума 10 грн")
+            return await message.answer("❌ Мінімальна сума — 10 грн")
 
         order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
 
