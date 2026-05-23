@@ -556,7 +556,8 @@ function initCustomerFields() {
   const nameEl = document.getElementById('payName');
 
   if (user && !nameEl.value.trim()) {
-    nameEl.value = [user.first_name, user.last_name].filter(Boolean).join(' ');
+    const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+    nameEl.value = fullName || '';
   }
 
   updateContactButton();
