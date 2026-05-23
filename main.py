@@ -62,6 +62,7 @@ def init_db():
             tg_username TEXT,
             name TEXT,
             phone TEXT,
+            phone_shared INTEGER DEFAULT 0,
             city TEXT,
             city_ref TEXT,
             warehouse TEXT,
@@ -73,6 +74,11 @@ def init_db():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    cur.execute("PRAGMA table_info(orders)")
+    order_columns = [row["name"] for row in cur.fetchall()]
+    if "phone_shared" not in order_columns:
+        cur.execute("ALTER TABLE orders ADD COLUMN phone_shared INTEGER DEFAULT 0")
 
     cur.execute("SELECT COUNT(*) AS count FROM products")
     if cur.fetchone()["count"] == 0:
@@ -113,17 +119,18 @@ def save_order(data):
     conn.execute(
         """
         INSERT INTO orders (
-            id, tg_user_id, tg_username, name, phone,
+            id, tg_user_id, tg_username, name, phone, phone_shared,
             city, city_ref, warehouse, warehouse_ref,
             comment, items_json, total
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             order_id,
             customer.get("telegramId"),
             customer.get("username"),
             customer.get("name"),
-            customer.get("phone"),
+            customer.get("phone", ""),
+            1 if customer.get("phoneShared") else 0,
             delivery.get("city"),
             delivery.get("cityRef"),
             delivery.get("warehouse"),
@@ -163,37 +170,81 @@ def nova_poshta_request(model_name, called_method, method_properties):
         raise RuntimeError(f"Nova Poshta недоступна: {exc}") from exc
 
     if not data.get("success"):
-        errors = ", ".join(data.get("errors") or ["невідома помилка"])
-        raise RuntimeError(errors)
+        errors = ", ".join(data.get("errors") or [])
+        warnings = ", ".join(data.get("warnings") or [])
+        info = ", ".join(data.get("info") or [])
+        message = errors or warnings or info or "невідома помилка Nova Poshta"
+        raise RuntimeError(message)
 
     return data.get("data") or []
 
 
 async def np_search_cities(query):
+    try:
+        data = await asyncio.to_thread(
+            nova_poshta_request,
+            "AddressGeneral",
+            "searchSettlements",
+            {"CityName": query, "Limit": "10", "Page": "1"},
+        )
+
+        addresses = []
+        for item in data:
+            addresses.extend(item.get("Addresses") or [])
+
+        cities = [
+            {
+                "ref": x.get("DeliveryCity") or x.get("Ref"),
+                "name": x.get("Present") or x.get("MainDescription"),
+                "area": x.get("Area"),
+            }
+            for x in addresses
+            if x.get("DeliveryCity") or x.get("Ref")
+        ]
+
+        if cities:
+            return cities
+    except Exception as exc:
+        logger.warning(
+            "Nova Poshta searchSettlements failed, trying getSettlements: %s",
+            exc,
+        )
+
     data = await asyncio.to_thread(
         nova_poshta_request,
         "AddressGeneral",
-        "searchSettlements",
-        {"CityName": query, "Limit": "10", "Page": "1"},
+        "getSettlements",
+        {
+            "FindByString": query,
+            "Warehouse": "1",
+            "Limit": "10",
+            "Page": "1",
+        },
     )
-
-    addresses = []
-    for item in data:
-        addresses.extend(item.get("Addresses") or [])
 
     return [
         {
-            "ref": x.get("DeliveryCity") or x.get("Ref"),
-            "name": x.get("Present") or x.get("MainDescription"),
-            "area": x.get("Area"),
+            "ref": x.get("Ref"),
+            "name": ", ".join(
+                part
+                for part in [
+                    x.get("SettlementTypeDescription"),
+                    x.get("Description"),
+                    x.get("AreaDescription"),
+                    x.get("RegionsDescription"),
+                ]
+                if part
+            ),
+            "area": x.get("AreaDescription"),
         }
-        for x in addresses
-        if x.get("DeliveryCity") or x.get("Ref")
+        for x in data
+        if x.get("Ref") and x.get("Description")
     ]
 
 
 async def np_search_warehouses(city_ref, query=""):
     props = {"CityRef": city_ref, "Limit": "30", "Page": "1"}
+
     if query:
         props["FindByString"] = query
 
@@ -220,11 +271,13 @@ def order_text(order_id, data):
     delivery = data.get("delivery") or {}
     items = data.get("items") or []
 
+    phone = customer.get("phone") or "надіслано окремо в Telegram"
+
     lines = [
         f"🧾 <b>Нове замовлення #{order_id}</b>",
         "",
         f"👤 {customer.get('name') or '—'}",
-        f"📞 {customer.get('phone') or '—'}",
+        f"📞 {phone}",
     ]
 
     if customer.get("username"):
@@ -288,6 +341,7 @@ async def api_products():
 @app.get("/api/np/cities")
 async def api_np_cities(q: str = ""):
     q = q.strip()
+
     if len(q) < 2:
         return []
 
@@ -334,7 +388,21 @@ async def start(message: types.Message):
         ],
         resize_keyboard=True,
     )
+
     await message.answer("🌸 Рідні квіти", reply_markup=kb)
+
+
+@dp.message(F.contact)
+async def contact_received(message: types.Message):
+    contact = message.contact
+
+    if not contact or not contact.phone_number:
+        return
+
+    await message.answer(
+        f"✅ Телефон отримано: {contact.phone_number}\n"
+        "Тепер можете повернутися до оформлення замовлення."
+    )
 
 
 @dp.message(F.web_app_data)
