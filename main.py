@@ -1,3 +1,6 @@
+
+print("🔥 THIS MAIN IS RUNNING")
+
 import asyncio
 import json
 import os
@@ -429,3 +432,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+
+@app.get("/debug")
+async def debug():
+    return {"ok": "THIS VERSION IS ACTIVE"}
