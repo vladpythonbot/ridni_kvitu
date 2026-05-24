@@ -191,7 +191,7 @@ textarea.form-input{resize:none;line-height:1.5}
         <div class="form-section-label">Контактні дані</div>
         <input class="form-input" type="text" placeholder="Ім'я та прізвище" id="payName">
         <button class="contact-btn" id="contactBtn" onclick="requestPhone()">📞 Надіслати телефон</button>
-        <input class="form-input" type="tel" placeholder="Номер телефону" id="payPhone" style="display:none">
+        <input class="form-input" type="tel" placeholder="Номер телефону" id="payPhone" style="display:none" oninput="onPhoneInput()">
         <div class="form-section-label">Доставка</div>
         <div class="suggest-wrap">
           <input class="form-input" type="text" placeholder="Місто" id="payCity" autocomplete="off" oninput="onCityInput()" onfocus="searchCities()">
@@ -467,7 +467,14 @@ function initCustomerFields() {
 function updateContactButton() {
   const btn = document.getElementById('contactBtn');
   const phoneEl = document.getElementById('payPhone');
-  const phone = customerPhone || phoneEl.value.trim();
+  if (customerPhone === 'shared') {
+    btn.className = 'contact-btn done';
+    btn.textContent = '✓ Телефон надіслано';
+    phoneEl.style.display = 'none';
+    return;
+  }
+
+  const phone = phoneEl.value.trim();
   if (!phone) {
     btn.className = 'contact-btn';
     btn.textContent = '📞 Надіслати телефон';
@@ -479,26 +486,38 @@ function updateContactButton() {
   phoneEl.style.display = 'block';
   phoneEl.value = phone;
 }
+function onPhoneInput() {
+  customerPhone = '';
+  updateContactButton();
+}
 function requestPhone() {
+  const phoneEl = document.getElementById('payPhone');
   if (isTelegram && tg?.requestContact) {
-    tg.requestContact((contact) => {
-      if (contact?.phone_number) {
-        customerPhone = contact.phone_number;
+    tg.requestContact((status) => {
+      const sent = status === true || status?.status === 'sent';
+      if (sent) {
+        customerPhone = 'shared';
         updateContactButton();
-        showToast('✅ Телефон додано');
+        showToast('✅ Телефон надіслано');
       } else {
-        document.getElementById('payPhone').style.display = 'block';
-        document.getElementById('payPhone').focus();
+        customerPhone = '';
+        phoneEl.style.display = 'block';
+        phoneEl.focus();
         showToast('Введіть телефон вручну');
       }
     });
     return;
   }
-  document.getElementById('payPhone').style.display = 'block';
-  document.getElementById('payPhone').focus();
+  customerPhone = '';
+  phoneEl.style.display = 'block';
+  phoneEl.focus();
   showToast('Введіть телефон вручну');
 }
 async function apiGet(url) {
+  if (location.protocol === 'file:') {
+    throw new Error('Відкрийте магазин через http://localhost:8000/, не через файл');
+  }
+
   let res;
   try {
     res = await fetch(url);
@@ -615,15 +634,18 @@ function orderPayload() {
 }
 function submitOrder() {
   const name = document.getElementById('payName').value.trim();
-  const phone = customerPhone || document.getElementById('payPhone').value.trim();
+  const manualPhone = document.getElementById('payPhone').value.trim();
+  const phoneShared = customerPhone === 'shared';
+  const phone = phoneShared ? '' : manualPhone;
   const comment = document.getElementById('payComment').value.trim();
-  if (!name || !phone || !selectedCity || !selectedWarehouse) { showToast('⚠️ Додайте імʼя, телефон, місто і відділення'); return; }
+  if (!name || (!phoneShared && !phone) || !selectedCity || !selectedWarehouse) { showToast('⚠️ Додайте імʼя, телефон, місто і відділення'); return; }
   const total = cartTotal();
   const payload = {
     orderId: Date.now().toString(36),
     customer: {
       name,
       phone,
+      phoneShared,
       telegramId: tg?.initDataUnsafe?.user?.id || null,
       username: tg?.initDataUnsafe?.user?.username || ''
     },
