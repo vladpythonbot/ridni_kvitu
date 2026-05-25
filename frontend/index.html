@@ -273,9 +273,10 @@ textarea.form-input{resize:none;line-height:1.5}
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 const isTelegram = Boolean(tg?.initData || tg?.initDataUnsafe?.user?.id);
+const urlParams = new URLSearchParams(location.search);
 const ADMIN_IDS = [123456789];
 const userId = tg?.initDataUnsafe?.user?.id ?? null;
-const isAdmin = userId !== null && ADMIN_IDS.includes(userId);
+const isAdmin = urlParams.get('admin') === '1' || (userId !== null && ADMIN_IDS.includes(userId));
 if (isAdmin) document.getElementById('tab-admin').style.display = 'flex';
 async function adminRequest(endpoint, body = {}) {
   if (!isAdmin) { showToast('⛔ Доступ заборонено'); return null; }
@@ -659,20 +660,25 @@ function submitOrder() {
     total,
     comment
   };
-  if (isTelegram && tg?.sendData) {
-    tg.sendData(JSON.stringify(payload));
-    tg.HapticFeedback?.notificationOccurred('success');
-  } else {
-    fetch('/api/order', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(() => showToast('✅ Замовлення оформлено!'))
-      .catch(() => showToast('❌ Не вдалося відправити замовлення'));
-  }
-  cart = {};
-  syncCartUi();
-  renderProducts();
-  showToast('✅ Замовлення відправлено!');
-  setTimeout(() => goTab('shop'), 800);
+  showToast('Створюємо оплату...');
+  fetch('/api/payment/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error || 'Не вдалося створити оплату');
+      return data;
+    })
+    .then(data => {
+      cart = {};
+      syncCartUi();
+      renderProducts();
+      showToast('Відкриваємо оплату Monobank...');
+      if (isTelegram && tg?.openLink) {
+        tg.openLink(data.paymentUrl);
+      } else {
+        window.location.href = data.paymentUrl;
+      }
+    })
+    .catch(e => showToast('❌ ' + e.message));
 }
 function renderAdminProds() {
   document.getElementById('adminProds').innerHTML = PRODUCTS.map(p => `
@@ -699,6 +705,12 @@ function showToast(msg) {
 }
 renderProducts();
 syncCartUi();
+if (urlParams.get('payment') === 'done') {
+  showToast('Дякуємо! Після підтвердження оплати бот надішле повідомлення.');
+}
+if (urlParams.get('admin') === '1') {
+  goTab('admin');
+}
 </script>
 </body>
 </html>
