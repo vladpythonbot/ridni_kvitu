@@ -403,19 +403,6 @@ async def contact_received(message: types.Message):
         f"✅ Телефон отримано: {contact.phone_number}\n"
         "Тепер можете повернутися до оформлення замовлення."
     )
-@app.post("/api/payment-click")
-async def payment_click(request: Request):
-    data = await request.json()
-    order_id = data.get("orderId")
-
-    if ADMIN_CHAT_ID:
-        await bot.send_message(
-            int(ADMIN_CHAT_ID),
-            f"💳 ПОЛЬЗОВАТЕЛЬ НАЖАЛ ОПЛАТУ\n\n🧾 Заказ #{order_id}"
-        )
-
-    return {"ok": True}
-
 
 @dp.message(F.web_app_data)
 async def webapp_data(message: types.Message):
