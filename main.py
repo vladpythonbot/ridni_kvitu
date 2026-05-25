@@ -1,6 +1,3 @@
-
-print("🔥 THIS MAIN IS RUNNING")
-
 import asyncio
 import json
 import os
@@ -406,6 +403,18 @@ async def contact_received(message: types.Message):
         f"✅ Телефон отримано: {contact.phone_number}\n"
         "Тепер можете повернутися до оформлення замовлення."
     )
+@app.post("/api/payment-click")
+async def payment_click(request: Request):
+    data = await request.json()
+    order_id = data.get("orderId")
+
+    if ADMIN_CHAT_ID:
+        await bot.send_message(
+            int(ADMIN_CHAT_ID),
+            f"💳 ПОЛЬЗОВАТЕЛЬ НАЖАЛ ОПЛАТУ\n\n🧾 Заказ #{order_id}"
+        )
+
+    return {"ok": True}
 
 
 @dp.message(F.web_app_data)
@@ -432,7 +441,3 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-
-@app.get("/debug")
-async def debug():
-    return {"ok": "THIS VERSION IS ACTIVE"}
