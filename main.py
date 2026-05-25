@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
-# ====================== БАЗА ======================
+
+# ====================== БАЗА ДАНИХ ======================
 def db():
     conn = sqlite3.connect("shop.db")
     conn.row_factory = sqlite3.Row
@@ -44,9 +45,15 @@ def db():
 def init_db():
     conn = db()
     cur = conn.cursor()
-    cur.execute("""CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL, 
-        emoji TEXT, active INTEGER DEFAULT 1)""")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            price INTEGER NOT NULL,
+            emoji TEXT,
+            active INTEGER DEFAULT 1
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -57,6 +64,62 @@ def get_all_products():
     rows = conn.execute("SELECT id, name, price, emoji FROM products WHERE active=1").fetchall()
     conn.close()
     return rows
+
+
+# ====================== NOVA POSHTA ======================
+def nova_poshta_request(model_name, called_method, method_properties):
+    if not NP_API_KEY:
+        return []
+
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": model_name,
+        "calledMethod": called_method,
+        "methodProperties": method_properties,
+    }
+
+    try:
+        req = urllib.request.Request(
+            "https://api.novaposhta.ua/v2.0/json/",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as res:
+            data = json.loads(res.read().decode("utf-8"))
+        return data.get("data") or []
+    except Exception as e:
+        logger.error(f"Nova Poshta error: {e}")
+        return []
+
+
+async def np_search_cities(query: str):
+    if len(query) < 2:
+        return []
+    try:
+        return await asyncio.to_thread(
+            nova_poshta_request,
+            "AddressGeneral",
+            "searchSettlements",
+            {"CityName": query, "Limit": "10"}
+        )
+    except:
+        return []
+
+
+async def np_search_warehouses(city_ref: str, query: str = ""):
+    if not city_ref:
+        return []
+    try:
+        return await asyncio.to_thread(
+            nova_poshta_request,
+            "AddressGeneral",
+            "getWarehouses",
+            {"CityRef": city_ref, "Limit": "30"}
+        )
+    except:
+        return []
+
 
 # ====================== FASTAPI ======================
 @asynccontextmanager
@@ -77,7 +140,17 @@ async def index():
 @app.get("/api/products")
 async def api_products():
     products = get_all_products()
-    return [{"id": p["id"], "name": p["name"], "price": p["price"], "emoji": p["emoji"]} for p in products]
+    return [{"id": p[0], "name": p[1], "price": p[2], "emoji": p[3]} for p in products]
+
+
+@app.get("/api/np/cities")
+async def api_np_cities(q: str = ""):
+    return await np_search_cities(q)
+
+
+@app.get("/api/np/warehouses")
+async def api_np_warehouses(cityRef: str, q: str = ""):
+    return await np_search_warehouses(cityRef, q)
 
 
 # ====================== BOT ======================
@@ -94,7 +167,6 @@ async def start(message: types.Message):
 async def webapp_data(message: types.Message):
     try:
         data = json.loads(message.web_app_data.data)
-        # ... (твоя логіка збереження замовлення)
         await message.answer("✅ Замовлення отримано!\nМи скоро з вами зв'яжемося.")
     except Exception as e:
         logger.error(e)
@@ -102,7 +174,7 @@ async def webapp_data(message: types.Message):
 
 
 async def start_bot():
-    logger.info("🤖 Бот запущений (polling)")
+    logger.info("🤖 Бот запущений")
     await dp.start_polling(bot)
 
 
