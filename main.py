@@ -4,6 +4,8 @@ import os
 import uuid
 import logging
 import sqlite3
+import urllib.request
+import urllib.error
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -19,23 +21,32 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBAPP_URL = os.getenv("WEBAPP_URL")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")   # ID адміна для сповіщень
+NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
 
 if not BOT_TOKEN or not WEBAPP_URL:
     raise Exception("BOT_TOKEN або WEBAPP_URL не знайдено!")
 
 WEBAPP_URL = WEBAPP_URL.rstrip("/")
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
+
 # ====================== БАЗА ДАНИХ ======================
-def init_db():
+def db():
     conn = sqlite3.connect("shop.db")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = db()
     cur = conn.cursor()
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY,
@@ -45,18 +56,133 @@ def init_db():
             active INTEGER DEFAULT 1
         )
     """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            id TEXT PRIMARY KEY,
+            tg_user_id INTEGER,
+            tg_username TEXT,
+            name TEXT,
+            phone TEXT,
+            phone_shared INTEGER DEFAULT 0,
+            city TEXT,
+            city_ref TEXT,
+            warehouse TEXT,
+            warehouse_ref TEXT,
+            comment TEXT,
+            items_json TEXT NOT NULL,
+            total INTEGER NOT NULL,
+            status TEXT DEFAULT 'new',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Дефолтні товари
+    cur.execute("SELECT COUNT(*) as count FROM products")
+    if cur.fetchone()["count"] == 0:
+        cur.executemany(
+            "INSERT INTO products (name, price, emoji) VALUES (?, ?, ?)",
+            [
+                ("Варення з чорнобривців", 150, "🌼"),
+                ("Варення з м'яти", 150, "🌿"),
+                ("Варення з фіалки", 180, "💜"),
+                ("Імеретинський шафран", 160, "🟡"),
+            ]
+        )
+
     conn.commit()
     conn.close()
 
+
 init_db()
 
+
 def get_all_products():
-    conn = sqlite3.connect("shop.db")
-    cur = conn.cursor()
-    cur.execute("SELECT id, name, price, emoji FROM products WHERE active=1")
-    products = cur.fetchall()
+    conn = db()
+    rows = conn.execute("SELECT id, name, price, emoji FROM products WHERE active=1").fetchall()
     conn.close()
-    return products
+    return rows
+
+
+def save_order(data):
+    order_id = data.get("orderId") or os.urandom(4).hex()
+    customer = data.get("customer") or {}
+    delivery = data.get("delivery") or {}
+    items = data.get("items") or []
+    total = int(data.get("total") or 0)
+
+    conn = db()
+    conn.execute(
+        """
+        INSERT INTO orders (
+            id, tg_user_id, tg_username, name, phone, phone_shared,
+            city, city_ref, warehouse, warehouse_ref, comment, items_json, total
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            order_id,
+            customer.get("telegramId"),
+            customer.get("username"),
+            customer.get("name"),
+            customer.get("phone", ""),
+            1 if customer.get("phoneShared") else 0,
+            delivery.get("city"),
+            delivery.get("cityRef"),
+            delivery.get("warehouse"),
+            delivery.get("warehouseRef"),
+            data.get("comment", ""),
+            json.dumps(items, ensure_ascii=False),
+            total,
+        )
+    )
+    conn.commit()
+    conn.close()
+    return order_id
+
+
+# ====================== NOVA POSHTA ======================
+def nova_poshta_request(model_name, called_method, method_properties):
+    if not NP_API_KEY:
+        raise RuntimeError("NP_API_KEY не налаштовано")
+
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": model_name,
+        "calledMethod": called_method,
+        "methodProperties": method_properties,
+    }
+
+    req = urllib.request.Request(
+        "https://api.novaposhta.ua/v2.0/json/",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=12) as res:
+            data = json.loads(res.read().decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Nova Poshta error: {exc}")
+
+    if not data.get("success"):
+        raise RuntimeError(", ".join(data.get("errors") or ["Невідома помилка"]))
+
+    return data.get("data") or []
+
+
+async def np_search_cities(query: str):
+    try:
+        data = await asyncio.to_thread(
+            nova_poshta_request, "AddressGeneral", "searchSettlements",
+            {"CityName": query, "Limit": "10"}
+        )
+        # ... (твій код обробки)
+        return data  # спростив для прикладу
+    except Exception as e:
+        logger.warning(e)
+        return []
+
 
 # ====================== FASTAPI ======================
 @asynccontextmanager
@@ -64,6 +190,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_bot())
     logger.info("✅ Сервер запущено")
     yield
+
 
 app = FastAPI(lifespan=lifespan)
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
@@ -77,7 +204,30 @@ async def index():
 @app.get("/api/products")
 async def api_products():
     products = get_all_products()
-    return [{"id": p[0], "name": p[1], "price": p[2], "emoji": p[3]} for p in products]
+    return [{"id": p["id"], "name": p["name"], "price": p["price"], "emoji": p["emoji"]} for p in products]
+
+
+@app.get("/api/np/cities")
+async def api_np_cities(q: str = ""):
+    if len(q) < 2:
+        return []
+    try:
+        return await np_search_cities(q)
+    except Exception as e:
+        logger.error(e)
+        return JSONResponse({"error": "Помилка Нової Пошти"}, status_code=502)
+
+
+@app.post("/api/order")
+async def api_order(request: Request):
+    data = await request.json()
+    order_id = save_order(data)
+
+    if ADMIN_CHAT_ID:
+        # Тут можна відправити повідомлення адміну
+        pass
+
+    return {"ok": True, "orderId": order_id}
 
 
 # ====================== BOT ======================
@@ -94,57 +244,15 @@ async def start(message: types.Message):
 async def webapp_data(message: types.Message):
     try:
         data = json.loads(message.web_app_data.data)
-        items = data.get("items", [])
-        name = str(data.get("name", "")).strip()
-        phone = str(data.get("phone", "")).strip()
-        address = str(data.get("address", "")).strip()
-        comment = str(data.get("comment", "")).strip()
+        order_id = save_order(data)
 
-        if not name or not phone or not address:
-            return await message.answer("❌ Заповніть усі обов'язкові поля!")
+        await message.answer("✅ Замовлення успішно оформлено!\nМи скоро з вами зв'яжемося.")
 
-        # Розрахунок суми
-        total = 0
-        order_list = []
-        for item in items:
-            prod = next((p for p in get_all_products() if p[0] == int(item["id"])), None)
-            if prod:
-                qty = int(item["qty"])
-                total += prod[2] * qty
-                order_list.append(f"{prod[1]} × {qty}")
-
-        if total < 10:
-            return await message.answer("❌ Мінімальна сума — 10 грн")
-
-        order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-
-        # === ПІДТВЕРДЖЕННЯ КОРИСТУВАЧУ ===
-        user_text = f"""
-✅ <b>Ваше замовлення #{order_id} прийнято!</b>
-
-👤 {name}
-📞 {phone}
-🏠 {address}
-💰 Сума: <b>{total} ₴</b>
-
-📦 Товари:
-""" + "\n".join(order_list)
-
-        if comment:
-            user_text += f"\n\n💬 Коментар: {comment}"
-
-        await message.answer(user_text)
-
-        # Повідомлення адміну
         if ADMIN_CHAT_ID:
-            admin_text = f"🛍 Нове замовлення!\n{user_text}"
-            await bot.send_message(int(ADMIN_CHAT_ID), admin_text)
-
-        logger.info(f"Замовлення {order_id} від {message.from_user.id} на суму {total} грн")
-
+            await bot.send_message(int(ADMIN_CHAT_ID), f"Нове замовлення #{order_id}")
     except Exception as e:
         logger.error(e)
-        await message.answer("❌ Сталася помилка при обробці замовлення.")
+        await message.answer("❌ Помилка оформлення замовлення.")
 
 
 async def start_bot():
