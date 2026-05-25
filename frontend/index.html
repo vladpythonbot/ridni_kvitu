@@ -273,15 +273,25 @@ textarea.form-input{resize:none;line-height:1.5}
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 const isTelegram = Boolean(tg?.initData || tg?.initDataUnsafe?.user?.id);
-const urlParams = new URLSearchParams(location.search);
-const ADMIN_IDS = [123456789];
-const userId = tg?.initDataUnsafe?.user?.id ?? null;
-const isAdmin = urlParams.get('admin') === '1' || (userId !== null && ADMIN_IDS.includes(userId));
-if (isAdmin) document.getElementById('tab-admin').style.display = 'flex';
+let isAdmin = false;
+function authHeaders() {
+  return {'X-Telegram-Init-Data': tg?.initData || ''};
+}
+async function initAdminAccess() {
+  if (!isTelegram) return;
+  try {
+    const res = await fetch('/api/admin/me', {headers: authHeaders()});
+    const data = await res.json();
+    isAdmin = Boolean(data?.isAdmin);
+    if (isAdmin) document.getElementById('tab-admin').style.display = 'flex';
+  } catch (e) {
+    isAdmin = false;
+  }
+}
 async function adminRequest(endpoint, body = {}) {
   if (!isAdmin) { showToast('⛔ Доступ заборонено'); return null; }
   try {
-    const res = await fetch('/api/admin/' + endpoint, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,...body})});
+    const res = await fetch('/api/admin/' + endpoint, {headers: authHeaders()});
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
   } catch (e) { showToast('❌ ' + e.message); return null; }
@@ -306,6 +316,7 @@ let warehouseRequestId = 0;
 function goTab(tab) {
   if (tab === currentTab || tab === 'order') return;
   if (tab === 'cart' && cartCount() === 0) return;
+  if (tab === 'admin' && !isAdmin) { showToast('⛔ Доступ заборонено'); return; }
   const order = ['shop','cart','info','admin'];
   const prev = order.indexOf(currentTab);
   const next = order.indexOf(tab);
@@ -322,7 +333,7 @@ function goTab(tab) {
   currentTab = tab;
   updateMainButton();
   if (tab === 'cart') renderCart();
-  if (tab === 'admin') renderAdminProds();
+  if (tab === 'admin') renderAdmin();
 }
 function goOrder() {
   if (cartCount() === 0) return;
@@ -680,6 +691,52 @@ function submitOrder() {
     })
     .catch(e => showToast('❌ ' + e.message));
 }
+async function renderAdmin() {
+  renderAdminProds();
+  await renderAdminOrders();
+}
+
+async function renderAdminOrders() {
+  const data = await adminRequest('orders');
+  if (!data) return;
+
+  const orders = data.orders || [];
+  const paidOrders = orders.filter(o => o.status === 'paid');
+  const waitingOrders = orders.filter(o => o.status !== 'paid');
+  const revenue = paidOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  document.getElementById('adminOrderCount').textContent = orders.length;
+  document.getElementById('adminRevenue').textContent = revenue.toLocaleString('uk') + ' ₴';
+  const waitingEl = document.querySelector('.admin-stats .a-stat:nth-child(4) .a-stat-val');
+  if (waitingEl) waitingEl.textContent = waitingOrders.length;
+
+  const ordersEl = document.getElementById('adminOrders');
+  if (!orders.length) {
+    ordersEl.innerHTML = '<div class="suggest-empty">Замовлень поки немає</div>';
+    return;
+  }
+
+  ordersEl.innerHTML = orders.map(o => {
+    const itemsText = (o.items || [])
+      .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
+      .join(' · ');
+    const statusClass = o.status === 'paid' ? 'done' : 'new';
+    const statusText = o.status === 'paid' ? 'Оплачено' : 'Очікує оплату';
+    const phone = o.phone || (o.phone_shared ? 'надіслано в Telegram' : '—');
+
+    return `
+      <div class="a-order">
+        <div class="a-order-top">
+          <span class="a-order-id">#${escapeHtml(o.id || '')}</span>
+          <span class="a-order-name">${escapeHtml(o.name || '—')}</span>
+          <span class="a-badge ${statusClass}">${statusText}</span>
+        </div>
+        <div class="a-order-items">${escapeHtml(itemsText || 'Без товарів')} — ${Number(o.total || 0).toLocaleString('uk')} ₴</div>
+        <div class="a-order-items">📞 ${escapeHtml(phone)} · ${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
+      </div>`;
+  }).join('');
+}
+
 function renderAdminProds() {
   document.getElementById('adminProds').innerHTML = PRODUCTS.map(p => `
     <div class="a-prod">
@@ -705,12 +762,7 @@ function showToast(msg) {
 }
 renderProducts();
 syncCartUi();
-if (urlParams.get('payment') === 'done') {
-  showToast('Дякуємо! Після підтвердження оплати бот надішле повідомлення.');
-}
-if (urlParams.get('admin') === '1') {
-  goTab('admin');
-}
+initAdminAccess();
 </script>
 </body>
 </html>

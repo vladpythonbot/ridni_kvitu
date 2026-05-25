@@ -1,10 +1,14 @@
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import logging
 import sqlite3
 import urllib.request
 import urllib.error
+import urllib.parse
+import time
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -28,7 +32,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "").rstrip("/")
 NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
 MONO_TOKEN = os.getenv("MONO_TOKEN", "").strip()
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "").strip()
+ADMIN_ID = (os.getenv("ADMIN_CHAT_ID") or os.getenv("ADMIN_ID") or "").strip()
 RUN_BOT = os.getenv("RUN_BOT", "1") == "1"
 
 if not BOT_TOKEN or not WEBAPP_URL:
@@ -201,9 +205,44 @@ def admin_panel_markup():
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text="⚙️ Відкрити адмін панель",
-            web_app=WebAppInfo(url=f"{WEBAPP_URL}?admin=1"),
+            web_app=WebAppInfo(url=WEBAPP_URL),
         )
     ]])
+
+
+def verify_telegram_init_data(init_data):
+    if not init_data:
+        return None
+
+    parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+    received_hash = parsed.pop("hash", None)
+    if not received_hash:
+        return None
+
+    auth_date = int(parsed.get("auth_date") or 0)
+    if auth_date and time.time() - auth_date > 60 * 60 * 24:
+        return None
+
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(parsed.items()))
+    secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode("utf-8"), hashlib.sha256).digest()
+    calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, received_hash):
+        return None
+
+    try:
+        return json.loads(parsed.get("user") or "{}")
+    except json.JSONDecodeError:
+        return None
+
+
+def admin_from_request(request):
+    user = verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
+    if not user:
+        return None
+    if ADMIN_ID and str(user.get("id")) == str(ADMIN_ID):
+        return user
+    return None
 
 
 def order_text(order_id, data_or_order, paid=False):
@@ -466,14 +505,56 @@ async def api_payment_create(request: Request):
 
     update_order_payment(order_id, invoice_id=invoice_id, page_url=page_url, status="payment_waiting")
 
-    if ADMIN_CHAT_ID:
+    if ADMIN_ID:
         await bot.send_message(
-            int(ADMIN_CHAT_ID),
+            int(ADMIN_ID),
             order_text(order_id, data, paid=False),
             reply_markup=admin_panel_markup(),
         )
 
     return {"ok": True, "orderId": order_id, "invoiceId": invoice_id, "paymentUrl": page_url}
+
+
+@app.get("/api/admin/me")
+async def api_admin_me(request: Request):
+    user = admin_from_request(request)
+    return {
+        "isAdmin": bool(user),
+        "user": {
+            "id": user.get("id"),
+            "firstName": user.get("first_name"),
+            "username": user.get("username"),
+        } if user else None,
+    }
+
+
+@app.get("/api/admin/orders")
+async def api_admin_orders(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    conn = db()
+    rows = conn.execute(
+        """
+        SELECT id, tg_username, name, phone, phone_shared, city, warehouse,
+               items_json, total, status, created_at, paid_at
+        FROM orders
+        ORDER BY created_at DESC
+        LIMIT 50
+        """
+    ).fetchall()
+    conn.close()
+
+    orders = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["items"] = json.loads(item.pop("items_json") or "[]")
+        except json.JSONDecodeError:
+            item["items"] = []
+        orders.append(item)
+
+    return {"orders": orders}
 
 
 @app.post("/api/mono/webhook")
@@ -495,9 +576,9 @@ async def mono_webhook(request: Request):
                 int(paid_order["tg_user_id"]),
                 f"✅ Оплату отримано!\nЗамовлення #{paid_order['id']} передано в обробку.",
             )
-        if ADMIN_CHAT_ID:
+        if ADMIN_ID:
             await bot.send_message(
-                int(ADMIN_CHAT_ID),
+                int(ADMIN_ID),
                 order_text(paid_order["id"], paid_order, paid=True),
                 reply_markup=admin_panel_markup(),
             )
@@ -519,7 +600,7 @@ async def start(message: types.Message):
 
 @dp.message(Command("admin"))
 async def admin(message: types.Message):
-    if ADMIN_CHAT_ID and str(message.from_user.id) != str(ADMIN_CHAT_ID):
+    if not ADMIN_ID or str(message.from_user.id) != str(ADMIN_ID):
         await message.answer("⛔ Доступ заборонено")
         return
     await message.answer("Адмін панель:", reply_markup=admin_panel_markup())
