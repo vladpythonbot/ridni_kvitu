@@ -84,6 +84,50 @@ async def create_order(request: Request):
 
     return {"ok": True}
 
+from aiogram import F
+import json
+
+@dp.message(F.web_app_data)
+async def webapp_order(message: types.Message):
+    data = json.loads(message.web_app_data.data)
+
+    customer = data["customer"]
+    delivery = data["delivery"]
+    items = data["items"]
+    total = data["total"]
+
+    items_text = "\n".join(
+        f"{i['emoji']} {i['name']} × {i['qty']} — {i['sum']} ₴"
+        for i in items
+    )
+
+    admin_text = (
+        f"🆕 <b>Нове замовлення</b>\n\n"
+        f"👤 {customer['name']}\n"
+        f"📞 {customer['phone'] or 'Telegram contact'}\n"
+        f"🏙 {delivery['city']}\n"
+        f"📦 {delivery['warehouse']}\n\n"
+        f"{items_text}\n\n"
+        f"💰 Разом: {total} ₴"
+    )
+
+    # админу
+    await bot.send_message(ADMIN_ID, admin_text)
+
+    # клиенту
+    user_text = (
+        f"✅ <b>Оплату отримано!</b>\n\n"
+        f"📦 Ваше замовлення оформлене.\n\n"
+        f"{items_text}\n\n"
+        f"🚚 Доставка:\n"
+        f"{delivery['city']}\n"
+        f"{delivery['warehouse']}\n\n"
+        f"💰 Сума: {total} ₴\n\n"
+        f"🌸 Дякуємо за замовлення!"
+    )
+
+    await message.answer(user_text)
+
 async def notify_admin(text: str):
     await bot.send_message(ADMIN_ID, text)
 
