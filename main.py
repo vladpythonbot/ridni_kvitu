@@ -436,6 +436,7 @@ async def create_mono_invoice(order_id, data):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if RUN_BOT:
+        await configure_bot_profile()
         asyncio.create_task(start_bot())
         logger.info("🤖 Бот запущений")
     else:
@@ -589,6 +590,19 @@ async def mono_webhook(request: Request):
 
 
 # ====================== BOT ======================
+async def configure_bot_profile():
+    await bot.set_my_short_description(
+        short_description="Крафтове варення з квітів від майстерні «Рідні квіти»."
+    )
+    await bot.set_my_description(
+        description=(
+            "🌸 Рідні квіти — маленька майстерня крафтового варення з квітів.\n\n"
+            "У магазині можна вибрати варення, оформити доставку Новою Поштою "
+            "та оплатити замовлення онлайн."
+        )
+    )
+
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     kb = ReplyKeyboardMarkup(
