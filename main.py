@@ -28,11 +28,15 @@ from aiogram.types import (
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBAPP_URL = os.getenv("WEBAPP_URL", "").rstrip("/")
+BOT_TOKEN = os.getenv("BOT_TOKEN") or ""
+WEBAPP_URL = (os.getenv("WEBAPP_URL") or "").rstrip("/")
 NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
 MONO_TOKEN = os.getenv("MONO_TOKEN", "").strip()
-ADMIN_ID = (os.getenv("ADMIN_CHAT_ID") or os.getenv("ADMIN_ID") or "").strip()
+ADMIN_IDS = {
+    item.strip()
+    for item in (os.getenv("ADMIN_IDS") or os.getenv("ADMIN_ID") or os.getenv("ADMIN_CHAT_ID") or "").split(",")
+    if item.strip()
+}
 RUN_BOT = os.getenv("RUN_BOT", "1") == "1"
 
 if not BOT_TOKEN or not WEBAPP_URL:
@@ -210,6 +214,14 @@ def admin_panel_markup():
     ]])
 
 
+def join_api_messages(value):
+    if not value:
+        return ""
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
 def verify_telegram_init_data(init_data):
     if not init_data:
         return None
@@ -227,7 +239,7 @@ def verify_telegram_init_data(init_data):
     secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode("utf-8"), hashlib.sha256).digest()
     calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    if not hmac.compare_digest(calculated_hash, received_hash):
+    if not hmac.compare_digest(calculated_hash, str(received_hash)):
         return None
 
     try:
@@ -240,9 +252,17 @@ def admin_from_request(request):
     user = verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
     if not user:
         return None
-    if ADMIN_ID and str(user.get("id")) == str(ADMIN_ID):
+    if str(user.get("id")) in ADMIN_IDS:
         return user
     return None
+
+
+async def send_admin_message(text, reply_markup=None):
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(int(admin_id), text, reply_markup=reply_markup)
+        except Exception:
+            logger.exception("Failed to send admin message to %s", admin_id)
 
 
 def order_text(order_id, data_or_order, paid=False):
@@ -316,9 +336,9 @@ def nova_poshta_request(model_name, called_method, method_properties):
         raise RuntimeError(f"Nova Poshta недоступна: {exc}") from exc
 
     if not data.get("success"):
-        errors = ", ".join(data.get("errors") or [])
-        warnings = ", ".join(data.get("warnings") or [])
-        info = ", ".join(data.get("info") or [])
+        errors = join_api_messages(data.get("errors"))
+        warnings = join_api_messages(data.get("warnings"))
+        info = join_api_messages(data.get("info"))
         raise RuntimeError(errors or warnings or info or "невідома помилка Nova Poshta")
     return data.get("data") or []
 
@@ -435,6 +455,7 @@ async def create_mono_invoice(order_id, data):
 # ====================== FASTAPI ======================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _ = app
     if RUN_BOT:
         await configure_bot_profile()
         asyncio.create_task(start_bot())
@@ -506,12 +527,10 @@ async def api_payment_create(request: Request):
 
     update_order_payment(order_id, invoice_id=invoice_id, page_url=page_url, status="payment_waiting")
 
-    if ADMIN_ID:
-        await bot.send_message(
-            int(ADMIN_ID),
-            order_text(order_id, data, paid=False),
-            reply_markup=admin_panel_markup(),
-        )
+    await send_admin_message(
+        order_text(order_id, data, paid=False),
+        reply_markup=admin_panel_markup(),
+    )
 
     return {"ok": True, "orderId": order_id, "invoiceId": invoice_id, "paymentUrl": page_url}
 
@@ -546,9 +565,9 @@ async def api_admin_orders(request: Request):
     ).fetchall()
     conn.close()
 
-    orders = []
+    orders: list[dict[str, object]] = []
     for row in rows:
-        item = dict(row)
+        item: dict[str, object] = dict(row)
         try:
             item["items"] = json.loads(item.pop("items_json") or "[]")
         except json.JSONDecodeError:
@@ -577,12 +596,10 @@ async def mono_webhook(request: Request):
                 int(paid_order["tg_user_id"]),
                 f"✅ Оплату отримано!\nЗамовлення #{paid_order['id']} передано в обробку.",
             )
-        if ADMIN_ID:
-            await bot.send_message(
-                int(ADMIN_ID),
-                order_text(paid_order["id"], paid_order, paid=True),
-                reply_markup=admin_panel_markup(),
-            )
+        await send_admin_message(
+            order_text(paid_order["id"], paid_order, paid=True),
+            reply_markup=admin_panel_markup(),
+        )
     elif status in {"failure", "expired", "reversed"}:
         update_order_payment(order["id"], status=status)
 
@@ -614,7 +631,7 @@ async def start(message: types.Message):
 
 @dp.message(Command("admin"))
 async def admin(message: types.Message):
-    if not ADMIN_ID or str(message.from_user.id) != str(ADMIN_ID):
+    if str(message.from_user.id) not in ADMIN_IDS:
         await message.answer("⛔ Доступ заборонено")
         return
     await message.answer("Адмін панель:", reply_markup=admin_panel_markup())
