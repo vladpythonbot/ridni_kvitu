@@ -130,6 +130,63 @@ def get_all_products():
     return rows
 
 
+def product_row_to_dict(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "price": row["price"],
+        "emoji": row["emoji"] or "🫙",
+    }
+
+
+def create_product(name, price, emoji):
+    conn = db()
+    cur = conn.execute(
+        "INSERT INTO products (name, price, emoji, active) VALUES (?, ?, ?, 1)",
+        (name, price, emoji or "🫙"),
+    )
+    conn.commit()
+    row = conn.execute("SELECT id, name, price, emoji FROM products WHERE id=?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return product_row_to_dict(row)
+
+
+def update_product(product_id, name=None, price=None, emoji=None):
+    sets = []
+    params = []
+    if name is not None:
+        sets.append("name=?")
+        params.append(name)
+    if price is not None:
+        sets.append("price=?")
+        params.append(price)
+    if emoji is not None:
+        sets.append("emoji=?")
+        params.append(emoji or "🫙")
+    if not sets:
+        return None
+
+    params.append(product_id)
+    conn = db()
+    conn.execute(f"UPDATE products SET {', '.join(sets)} WHERE id=?", params)
+    conn.commit()
+    row = conn.execute(
+        "SELECT id, name, price, emoji FROM products WHERE id=? AND active=1",
+        (product_id,),
+    ).fetchone()
+    conn.close()
+    return product_row_to_dict(row) if row else None
+
+
+def hide_product(product_id):
+    conn = db()
+    cur = conn.execute("UPDATE products SET active=0 WHERE id=?", (product_id,))
+    conn.commit()
+    changed = cur.rowcount > 0
+    conn.close()
+    return changed
+
+
 def get_order(order_id):
     conn = db()
     row = conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
@@ -483,7 +540,7 @@ async def payment_result():
 @app.get("/api/products")
 async def api_products():
     products = get_all_products()
-    return [{"id": p["id"], "name": p["name"], "price": p["price"], "emoji": p["emoji"]} for p in products]
+    return [product_row_to_dict(p) for p in products]
 
 
 @app.get("/api/np/cities")
@@ -575,6 +632,87 @@ async def api_admin_orders(request: Request):
         orders.append(item)
 
     return {"orders": orders}
+
+
+@app.post("/api/admin/product/add")
+async def api_admin_product_add(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    name = str(data.get("name") or "").strip()
+    emoji = str(data.get("emoji") or "🫙").strip()
+    try:
+        price = int(data.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0
+
+    if not name:
+        return JSONResponse({"error": "Вкажіть назву товару"}, status_code=400)
+    if price <= 0:
+        return JSONResponse({"error": "Вкажіть коректну ціну"}, status_code=400)
+
+    product = create_product(name, price, emoji)
+    return {"ok": True, "product": product}
+
+
+@app.post("/api/admin/product/update")
+async def api_admin_product_update(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    try:
+        product_id = int(data.get("productId") or data.get("id") or 0)
+    except (TypeError, ValueError):
+        product_id = 0
+
+    if product_id <= 0:
+        return JSONResponse({"error": "Невірний ID товару"}, status_code=400)
+
+    name = data.get("name")
+    emoji = data.get("emoji")
+    price = data.get("price")
+
+    clean_name = str(name).strip() if name is not None else None
+    clean_emoji = str(emoji).strip() if emoji is not None else None
+    clean_price = None
+    if price is not None:
+        try:
+            clean_price = int(price)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "Вкажіть коректну ціну"}, status_code=400)
+        if clean_price <= 0:
+            return JSONResponse({"error": "Вкажіть коректну ціну"}, status_code=400)
+
+    if clean_name == "":
+        return JSONResponse({"error": "Назва не може бути порожньою"}, status_code=400)
+
+    product = update_product(product_id, name=clean_name, price=clean_price, emoji=clean_emoji)
+    if not product:
+        return JSONResponse({"error": "Товар не знайдено"}, status_code=404)
+
+    return {"ok": True, "product": product}
+
+
+@app.post("/api/admin/product/delete")
+async def api_admin_product_delete(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    try:
+        product_id = int(data.get("productId") or data.get("id") or 0)
+    except (TypeError, ValueError):
+        product_id = 0
+
+    if product_id <= 0:
+        return JSONResponse({"error": "Невірний ID товару"}, status_code=400)
+
+    if not hide_product(product_id):
+        return JSONResponse({"error": "Товар не знайдено"}, status_code=404)
+
+    return {"ok": True}
 
 
 @app.post("/api/mono/webhook")

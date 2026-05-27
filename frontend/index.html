@@ -243,7 +243,7 @@ textarea.form-input{resize:none;line-height:1.5}
       </div>
       <div class="admin-section">Товари</div>
       <div class="admin-prods-list" id="adminProds"></div>
-      <button class="a-add-prod">＋ Додати товар</button>
+      <button class="a-add-prod" onclick="addProduct()">＋ Додати товар</button>
     </div>
   </div>
   <nav class="bottom-nav" id="bottomNav">
@@ -288,15 +288,28 @@ async function initAdminAccess() {
     isAdmin = false;
   }
 }
-async function adminRequest(endpoint, body = {}) {
+async function adminRequest(endpoint, body = null) {
   if (!isAdmin) { showToast('⛔ Доступ заборонено'); return null; }
   try {
-    const res = await fetch('/api/admin/' + endpoint, {headers: authHeaders()});
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
+    const options = {headers: authHeaders()};
+    if (body !== null) {
+      options.method = 'POST';
+      options.headers = {...options.headers, 'Content-Type':'application/json'};
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch('/api/admin/' + endpoint, options);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'HTTP ' + res.status);
+    return data;
   } catch (e) { showToast('❌ ' + e.message); return null; }
 }
-const PRODUCTS = [
+const PRODUCT_META = {
+  1:{desc:'Пелюстки, цукор — класичний квітковий смак',weight:'30 мл',cat:'marigold',badge:'Хіт',bg:'p-img-gold'},
+  2:{desc:'Свіжа садова м\'ята — прохолодний смак',weight:'30 мл',cat:'flower',badge:null,bg:'p-img-green'},
+  3:{desc:'Ніжна лісова фіалка — рідкісне варення',weight:'30 мл',cat:'flower',badge:'Рідкісне',bg:'p-img-warm'},
+  4:{desc:'Мамин рецепт — шафран із чорнобривців',weight:'30 мл',cat:'spice',badge:'Мамин рецепт',bg:'p-img-gold'}
+};
+let PRODUCTS = [
   {id:1,name:'Варення з чорнобривців',desc:'Пелюстки, цукор — класичний квітковий смак',emoji:'🌼',weight:'30 мл',price:150,cat:'marigold',badge:'Хіт',bg:'p-img-gold'},
   {id:2,name:'Варення з м\'яти',desc:'Свіжа садова м\'ята — прохолодний смак',emoji:'🌿',weight:'30 мл',price:150,cat:'flower',badge:null,bg:'p-img-green'},
   {id:3,name:'Варення з фіалки лісової',desc:'Ніжна лісова фіалка — рідкісне варення',emoji:'💜',weight:'30 мл',price:150,cat:'flower',badge:'Рідкісне',bg:'p-img-warm'},
@@ -313,6 +326,35 @@ let cityTimer = null;
 let warehouseTimer = null;
 let cityRequestId = 0;
 let warehouseRequestId = 0;
+function normalizeProduct(p) {
+  const meta = PRODUCT_META[p.id] || {};
+  return {
+    id: Number(p.id),
+    name: p.name || 'Товар',
+    desc: meta.desc || '',
+    emoji: p.emoji || '🫙',
+    weight: meta.weight || '30 мл',
+    price: Number(p.price || 0),
+    cat: meta.cat || 'flower',
+    badge: meta.badge || null,
+    bg: meta.bg || 'p-img-gold'
+  };
+}
+async function loadProducts() {
+  try {
+    const res = await fetch('/api/products');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const items = await res.json();
+    if (Array.isArray(items) && items.length) {
+      PRODUCTS = items.map(normalizeProduct);
+    }
+  } catch (e) {
+    console.warn('Products API unavailable, using local products', e);
+  }
+  renderProducts();
+  if (currentTab === 'cart') renderCart();
+  if (currentTab === 'admin' && isAdmin) renderAdminProds();
+}
 function goTab(tab) {
   if (tab === currentTab || tab === 'order') return;
   if (tab === 'cart' && cartCount() === 0) return;
@@ -738,21 +780,72 @@ async function renderAdminOrders() {
 }
 
 function renderAdminProds() {
-  document.getElementById('adminProds').innerHTML = PRODUCTS.map(p => `
+  const productCountEl = document.querySelector('.admin-stats .a-stat:nth-child(3) .a-stat-val');
+  if (productCountEl) productCountEl.textContent = PRODUCTS.length;
+
+  const el = document.getElementById('adminProds');
+  if (!PRODUCTS.length) {
+    el.innerHTML = '<div class="suggest-empty">Товарів поки немає</div>';
+    return;
+  }
+
+  el.innerHTML = PRODUCTS.map(p => `
     <div class="a-prod">
       <div class="a-prod-emo">${p.emoji}</div><div class="a-prod-name">${p.name}</div><div class="a-prod-price">${p.price} ₴</div>
       <div style="display:flex;gap:6px"><button class="a-act" onclick="editProduct(${p.id})">✏️</button><button class="a-act del" onclick="deleteProduct(${p.id})">🗑️</button></div>
     </div>`).join('');
 }
+async function addProduct() {
+  const name = prompt('Назва товару:');
+  if (!name || !name.trim()) return;
+
+  const priceText = prompt('Ціна (₴):', '150');
+  if (!priceText || isNaN(priceText)) { showToast('⚠️ Вкажіть коректну ціну'); return; }
+
+  const emoji = prompt('Emoji товару:', '🫙') || '🫙';
+  const r = await adminRequest('product/add', {
+    name: name.trim(),
+    price: Number(priceText),
+    emoji: emoji.trim() || '🫙'
+  });
+  if (!r) return;
+
+  showToast('＋ Товар додано');
+  await loadProducts();
+}
 async function deleteProduct(id) {
   if (!confirm('Видалити товар?')) return;
   const r = await adminRequest('product/delete', {productId:id});
-  if (r) showToast('🗑️ Видалено');
+  if (!r) return;
+  delete cart[id];
+  syncCartUi();
+  showToast('🗑️ Видалено');
+  await loadProducts();
 }
 async function editProduct(id) {
-  const val = prompt('Нова ціна (₴):'); if (!val || isNaN(val)) return;
-  const r = await adminRequest('product/update', {productId:id, price:+val});
-  if (r) showToast('✏️ Ціну оновлено');
+  const product = PRODUCTS.find(p => p.id == id);
+  if (!product) return;
+
+  const name = prompt('Назва товару:', product.name);
+  if (name === null) return;
+
+  const priceText = prompt('Ціна (₴):', product.price);
+  if (priceText === null) return;
+  if (!priceText || isNaN(priceText)) { showToast('⚠️ Вкажіть коректну ціну'); return; }
+
+  const emoji = prompt('Emoji товару:', product.emoji || '🫙');
+  if (emoji === null) return;
+
+  const r = await adminRequest('product/update', {
+    productId:id,
+    name:name.trim(),
+    price:Number(priceText),
+    emoji:emoji.trim() || '🫙'
+  });
+  if (!r) return;
+
+  showToast('✏️ Товар оновлено');
+  await loadProducts();
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -760,7 +853,7 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
 }
-renderProducts();
+loadProducts();
 syncCartUi();
 initAdminAccess();
 </script>
