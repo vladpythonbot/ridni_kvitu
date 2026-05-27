@@ -160,6 +160,15 @@ textarea.form-input{resize:none;line-height:1.5}
 .a-act{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--tg-bg);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 .a-act.del:active{background:#FCEBEB}
 .a-add-prod{margin:0 16px 16px;background:var(--green);color:#fff;border:none;border-radius:14px;padding:13px;font-family:'Jost',sans-serif;font-size:14px;font-weight:400;width:calc(100% - 32px);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.modal-backdrop{position:fixed;inset:0;background:rgba(46,31,14,.36);display:none;align-items:flex-end;z-index:200;padding:16px}
+.modal-backdrop.show{display:flex}
+.product-modal{width:100%;background:var(--tg-bg);border-radius:18px 18px calc(18px + var(--safe-bottom)) calc(18px + var(--safe-bottom));padding:18px 16px calc(18px + var(--safe-bottom));box-shadow:0 -10px 36px rgba(46,31,14,.24);border:1px solid var(--border)}
+.product-modal-title{font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--tg-text);margin-bottom:12px}
+.product-form{display:flex;flex-direction:column;gap:10px}
+.product-actions{display:flex;gap:10px;margin-top:4px}
+.product-actions button{flex:1;border:none;border-radius:14px;padding:13px;font-family:'Jost',sans-serif;font-size:14px;cursor:pointer}
+.product-cancel{background:var(--tg-secondary);color:var(--tg-text)}
+.product-save{background:var(--green);color:#fff}
 .toast{position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 12px);left:50%;transform:translateX(-50%);background:var(--bark);color:#fff;border-radius:20px;padding:10px 20px;font-size:13px;white-space:nowrap;z-index:999;opacity:0;transition:opacity .22s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.2)}
 .toast.show{opacity:1}
 </style>
@@ -269,6 +278,21 @@ textarea.form-input{resize:none;line-height:1.5}
     </button>
   </nav>
 </div>
+<div class="modal-backdrop" id="productModal" onclick="if(event.target===this) closeProductEditor()">
+  <div class="product-modal">
+    <div class="product-modal-title" id="productModalTitle">Товар</div>
+    <div class="product-form">
+      <input class="form-input" type="text" id="prodName" placeholder="Назва товару">
+      <input class="form-input" type="number" id="prodPrice" placeholder="Ціна, ₴" min="1" inputmode="numeric">
+      <input class="form-input" type="text" id="prodVolume" placeholder="Обʼєм / формат">
+      <input class="form-input" type="text" id="prodEmoji" placeholder="Emoji">
+      <div class="product-actions">
+        <button class="product-cancel" onclick="closeProductEditor()">Скасувати</button>
+        <button class="product-save" onclick="saveProduct()">Зберегти</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 const tg = window.Telegram?.WebApp;
@@ -327,6 +351,7 @@ let cityTimer = null;
 let warehouseTimer = null;
 let cityRequestId = 0;
 let warehouseRequestId = 0;
+let editingProductId = null;
 function normalizeProduct(p) {
   const meta = PRODUCT_META[p.id] || {};
   return {
@@ -796,33 +821,15 @@ function renderAdminProds() {
       <div class="a-prod-emo">${p.emoji}</div>
       <div class="a-prod-name">${p.name}<div class="a-prod-vol">${p.weight}</div></div>
       <div class="a-prod-price">${p.price} ₴</div>
-      <div style="display:flex;gap:6px"><button class="a-act" onclick="editProduct(${p.id})">✏️</button><button class="a-act del" onclick="deleteProduct(${p.id})">🗑️</button></div>
+      <div style="display:flex;gap:6px"><button type="button" class="a-act" onclick="editProduct(${p.id})">✏️</button><button type="button" class="a-act del" onclick="deleteProduct(${p.id})">🗑️</button></div>
     </div>`).join('');
 }
 async function addProduct() {
-  const name = prompt('Назва товару:');
-  if (!name || !name.trim()) return;
-
-  const priceText = prompt('Ціна (₴):', '150');
-  if (!priceText || isNaN(priceText)) { showToast('⚠️ Вкажіть коректну ціну'); return; }
-
-  const volume = prompt('Обʼєм / формат:', '30 мл');
-  if (!volume || !volume.trim()) { showToast('⚠️ Вкажіть обʼєм або формат'); return; }
-
-  const emoji = prompt('Emoji товару:', '🫙') || '🫙';
-  const r = await adminRequest('product/add', {
-    name: name.trim(),
-    price: Number(priceText),
-    volume: volume.trim(),
-    emoji: emoji.trim() || '🫙'
-  });
-  if (!r) return;
-
-  showToast('＋ Товар додано');
-  await loadProducts();
+  openProductEditor(null);
 }
 async function deleteProduct(id) {
-  if (!confirm('Видалити товар?')) return;
+  const ok = await confirmAction('Видалити товар?');
+  if (!ok) return;
   const r = await adminRequest('product/delete', {productId:id});
   if (!r) return;
   delete cart[id];
@@ -830,34 +837,61 @@ async function deleteProduct(id) {
   showToast('🗑️ Видалено');
   await loadProducts();
 }
+function confirmAction(message) {
+  return new Promise(resolve => {
+    if (isTelegram && tg?.showConfirm) {
+      tg.showConfirm(message, resolve);
+    } else {
+      resolve(confirm(message));
+    }
+  });
+}
 async function editProduct(id) {
   const product = PRODUCTS.find(p => p.id == id);
   if (!product) return;
+  openProductEditor(product);
+}
 
-  const name = prompt('Назва товару:', product.name);
-  if (name === null) return;
+function openProductEditor(product) {
+  editingProductId = product?.id || null;
+  document.getElementById('productModalTitle').textContent = editingProductId ? 'Редагувати товар' : 'Додати товар';
+  document.getElementById('prodName').value = product?.name || '';
+  document.getElementById('prodPrice').value = product?.price || 150;
+  document.getElementById('prodVolume').value = product?.weight || product?.volume || '30 мл';
+  document.getElementById('prodEmoji').value = product?.emoji || '🫙';
+  document.getElementById('productModal').classList.add('show');
+  setTimeout(() => document.getElementById('prodName').focus(), 80);
+}
 
-  const priceText = prompt('Ціна (₴):', product.price);
-  if (priceText === null) return;
-  if (!priceText || isNaN(priceText)) { showToast('⚠️ Вкажіть коректну ціну'); return; }
+function closeProductEditor() {
+  editingProductId = null;
+  document.getElementById('productModal').classList.remove('show');
+}
 
-  const volume = prompt('Обʼєм / формат:', product.weight || '30 мл');
-  if (volume === null) return;
-  if (!volume.trim()) { showToast('⚠️ Вкажіть обʼєм або формат'); return; }
+async function saveProduct() {
+  const name = document.getElementById('prodName').value.trim();
+  const price = Number(document.getElementById('prodPrice').value);
+  const volume = document.getElementById('prodVolume').value.trim();
+  const emoji = document.getElementById('prodEmoji').value.trim() || '🫙';
 
-  const emoji = prompt('Emoji товару:', product.emoji || '🫙');
-  if (emoji === null) return;
+  if (!name) { showToast('⚠️ Вкажіть назву товару'); return; }
+  if (!price || price <= 0) { showToast('⚠️ Вкажіть коректну ціну'); return; }
+  if (!volume) { showToast('⚠️ Вкажіть обʼєм або формат'); return; }
 
-  const r = await adminRequest('product/update', {
-    productId:id,
+  const payload = {
     name:name.trim(),
-    price:Number(priceText),
+    price,
     volume:volume.trim(),
     emoji:emoji.trim() || '🫙'
-  });
+  };
+
+  const r = editingProductId
+    ? await adminRequest('product/update', {...payload, productId:editingProductId})
+    : await adminRequest('product/add', payload);
   if (!r) return;
 
-  showToast('✏️ Товар оновлено');
+  showToast(editingProductId ? '✏️ Товар оновлено' : '＋ Товар додано');
+  closeProductEditor();
   await loadProducts();
 }
 function showToast(msg) {
