@@ -72,6 +72,7 @@ def init_db():
             name TEXT NOT NULL,
             price INTEGER NOT NULL,
             emoji TEXT,
+            volume TEXT DEFAULT '30 мл',
             active INTEGER DEFAULT 1
         )
     """)
@@ -99,6 +100,7 @@ def init_db():
         )
     """)
 
+    ensure_column(cur, "products", "volume", "TEXT DEFAULT '30 мл'")
     ensure_column(cur, "orders", "phone_shared", "INTEGER DEFAULT 0")
     ensure_column(cur, "orders", "mono_invoice_id", "TEXT")
     ensure_column(cur, "orders", "mono_page_url", "TEXT")
@@ -107,12 +109,12 @@ def init_db():
     cur.execute("SELECT COUNT(*) AS count FROM products")
     if cur.fetchone()["count"] == 0:
         cur.executemany(
-            "INSERT INTO products (id, name, price, emoji) VALUES (?, ?, ?, ?)",
+            "INSERT INTO products (id, name, price, emoji, volume) VALUES (?, ?, ?, ?, ?)",
             [
-                (1, "Варення з чорнобривців", 150, "🌼"),
-                (2, "Варення з м'яти", 150, "🌿"),
-                (3, "Варення з фіалки лісової", 150, "💜"),
-                (4, "Імеретинський шафран", 150, "🟡"),
+                (1, "Варення з чорнобривців", 150, "🌼", "30 мл"),
+                (2, "Варення з м'яти", 150, "🌿", "30 мл"),
+                (3, "Варення з фіалки лісової", 150, "💜", "30 мл"),
+                (4, "Імеретинський шафран", 150, "🟡", "30 мл"),
             ],
         )
 
@@ -125,7 +127,7 @@ init_db()
 
 def get_all_products():
     conn = db()
-    rows = conn.execute("SELECT id, name, price, emoji FROM products WHERE active=1").fetchall()
+    rows = conn.execute("SELECT id, name, price, emoji, volume FROM products WHERE active=1").fetchall()
     conn.close()
     return rows
 
@@ -136,22 +138,23 @@ def product_row_to_dict(row):
         "name": row["name"],
         "price": row["price"],
         "emoji": row["emoji"] or "🫙",
+        "volume": row["volume"] or "30 мл",
     }
 
 
-def create_product(name, price, emoji):
+def create_product(name, price, emoji, volume):
     conn = db()
     cur = conn.execute(
-        "INSERT INTO products (name, price, emoji, active) VALUES (?, ?, ?, 1)",
-        (name, price, emoji or "🫙"),
+        "INSERT INTO products (name, price, emoji, volume, active) VALUES (?, ?, ?, ?, 1)",
+        (name, price, emoji or "🫙", volume or "30 мл"),
     )
     conn.commit()
-    row = conn.execute("SELECT id, name, price, emoji FROM products WHERE id=?", (cur.lastrowid,)).fetchone()
+    row = conn.execute("SELECT id, name, price, emoji, volume FROM products WHERE id=?", (cur.lastrowid,)).fetchone()
     conn.close()
     return product_row_to_dict(row)
 
 
-def update_product(product_id, name=None, price=None, emoji=None):
+def update_product(product_id, name=None, price=None, emoji=None, volume=None):
     sets = []
     params = []
     if name is not None:
@@ -163,6 +166,9 @@ def update_product(product_id, name=None, price=None, emoji=None):
     if emoji is not None:
         sets.append("emoji=?")
         params.append(emoji or "🫙")
+    if volume is not None:
+        sets.append("volume=?")
+        params.append(volume or "30 мл")
     if not sets:
         return None
 
@@ -171,7 +177,7 @@ def update_product(product_id, name=None, price=None, emoji=None):
     conn.execute(f"UPDATE products SET {', '.join(sets)} WHERE id=?", params)
     conn.commit()
     row = conn.execute(
-        "SELECT id, name, price, emoji FROM products WHERE id=? AND active=1",
+        "SELECT id, name, price, emoji, volume FROM products WHERE id=? AND active=1",
         (product_id,),
     ).fetchone()
     conn.close()
@@ -642,6 +648,7 @@ async def api_admin_product_add(request: Request):
     data = await request.json()
     name = str(data.get("name") or "").strip()
     emoji = str(data.get("emoji") or "🫙").strip()
+    volume = str(data.get("volume") or "30 мл").strip()
     try:
         price = int(data.get("price") or 0)
     except (TypeError, ValueError):
@@ -651,8 +658,10 @@ async def api_admin_product_add(request: Request):
         return JSONResponse({"error": "Вкажіть назву товару"}, status_code=400)
     if price <= 0:
         return JSONResponse({"error": "Вкажіть коректну ціну"}, status_code=400)
+    if not volume:
+        return JSONResponse({"error": "Вкажіть обʼєм або склад набору"}, status_code=400)
 
-    product = create_product(name, price, emoji)
+    product = create_product(name, price, emoji, volume)
     return {"ok": True, "product": product}
 
 
@@ -672,10 +681,12 @@ async def api_admin_product_update(request: Request):
 
     name = data.get("name")
     emoji = data.get("emoji")
+    volume = data.get("volume")
     price = data.get("price")
 
     clean_name = str(name).strip() if name is not None else None
     clean_emoji = str(emoji).strip() if emoji is not None else None
+    clean_volume = str(volume).strip() if volume is not None else None
     clean_price = None
     if price is not None:
         try:
@@ -687,8 +698,16 @@ async def api_admin_product_update(request: Request):
 
     if clean_name == "":
         return JSONResponse({"error": "Назва не може бути порожньою"}, status_code=400)
+    if clean_volume == "":
+        return JSONResponse({"error": "Обʼєм не може бути порожнім"}, status_code=400)
 
-    product = update_product(product_id, name=clean_name, price=clean_price, emoji=clean_emoji)
+    product = update_product(
+        product_id,
+        name=clean_name,
+        price=clean_price,
+        emoji=clean_emoji,
+        volume=clean_volume,
+    )
     if not product:
         return JSONResponse({"error": "Товар не знайдено"}, status_code=404)
 
