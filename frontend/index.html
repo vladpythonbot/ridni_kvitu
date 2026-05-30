@@ -195,6 +195,10 @@ textarea.form-input{resize:none;line-height:1.5}
       <div class="cart-screen-head">Кошик</div>
       <div id="cartContent"></div>
     </div>
+    <div class="screen hidden-right" id="screen-history">
+      <div class="cart-screen-head">Мої замовлення</div>
+      <div id="historyContent"></div>
+    </div>
     <div class="screen hidden-right" id="screen-order">
       <div class="order-head">Оформлення</div>
       <div class="order-summary-mini"><span class="osm-label">До сплати</span><span class="osm-val" id="orderTotal">0 ₴</span></div>
@@ -272,6 +276,10 @@ textarea.form-input{resize:none;line-height:1.5}
     <button class="nav-tab" id="tab-info" onclick="goTab('info')">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <span>Про нас</span>
+    </button>
+    <button class="nav-tab" id="tab-history" onclick="goTab('history')">
+      <svg viewBox="0 0 24 24"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
+      <span>Історія</span>
     </button>
     <button class="nav-tab" id="tab-admin" onclick="goTab('admin')" style="display:none">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M12 14c-6 0-8 2-8 3v1h16v-1c0-1-2-3-8-3z"/></svg>
@@ -407,7 +415,7 @@ function goTab(tab) {
   if (tab === currentTab || tab === 'order') return;
   if (tab === 'cart' && cartCount() === 0) return;
   if (tab === 'admin' && !isAdmin) { showToast('⛔ Доступ заборонено'); return; }
-  const order = ['shop','cart','info','admin'];
+  const order = ['shop','cart','history','info','admin'];
   const prev = order.indexOf(currentTab);
   const next = order.indexOf(tab);
   const cur = document.getElementById('screen-' + currentTab);
@@ -423,6 +431,7 @@ function goTab(tab) {
   currentTab = tab;
   updateMainButton();
   if (tab === 'cart') renderCart();
+  if (tab === 'history') renderHistory();
   if (tab === 'admin') renderAdmin();
 }
 function goOrder() {
@@ -557,6 +566,57 @@ function renderCart() {
     ${!isTelegram ? `<button class="mono-pay-btn" style="margin:14px 16px 0;width:calc(100% - 32px)" onclick="goOrder()"><div class="mono-logo-badge">mono</div>Оформити замовлення</button>` : ''}
   `;
   updateMainButton();
+}
+async function renderHistory() {
+  const el = document.getElementById('historyContent');
+  el.innerHTML = '<div class="cart-empty-state"><p>Завантажуємо...</p></div>';
+
+  if (!isTelegram) {
+    el.innerHTML = '<div class="cart-empty-state"><div class="emo">🧾</div><p>Історія доступна, коли магазин відкрито через Telegram.</p></div>';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/orders/my', {headers: authHeaders()});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Не вдалося завантажити історію');
+    const orders = data.orders || [];
+
+    if (!orders.length) {
+      el.innerHTML = '<div class="cart-empty-state"><div class="emo">🧾</div><p>Замовлень поки немає.</p></div>';
+      return;
+    }
+
+    el.innerHTML = '<div class="cart-items">' + orders.map(o => {
+      const itemsText = (o.items || [])
+        .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
+        .join(' · ');
+      const statusText = orderStatusText(o.status);
+      return `
+        <div class="c-item">
+          <div class="c-emo">🧾</div>
+          <div class="c-info">
+            <div class="c-name">#${escapeHtml(o.id || '')} · ${escapeHtml(formatOrderTime(o.created_at))}</div>
+            <div class="c-sub">${escapeHtml(itemsText || 'Без товарів')}</div>
+            <div class="c-sub">${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
+          </div>
+          <div class="c-right">
+            <div class="c-price">${Number(o.total || 0).toLocaleString('uk')} ₴</div>
+            <div class="a-badge ${o.status === 'paid' ? 'done' : 'new'}">${statusText}</div>
+          </div>
+        </div>`;
+    }).join('') + '</div>';
+  } catch (e) {
+    el.innerHTML = `<div class="cart-empty-state"><div class="emo">⚠️</div><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+function orderStatusText(status) {
+  if (status === 'paid') return 'Оплачено';
+  if (status === 'payment_waiting') return 'Очікує оплату';
+  if (status === 'expired') return 'Прострочено';
+  if (status === 'failure') return 'Помилка';
+  if (status === 'reversed') return 'Повернено';
+  return 'Нове';
 }
 function initCustomerFields() {
   const user = tg?.initDataUnsafe?.user;

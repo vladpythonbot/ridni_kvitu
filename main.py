@@ -120,6 +120,15 @@ def init_db():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_order_messages (
+            order_id TEXT NOT NULL,
+            admin_id TEXT NOT NULL,
+            message_id INTEGER NOT NULL,
+            PRIMARY KEY (order_id, admin_id)
+        )
+    """)
+
     ensure_column(cur, "products", "volume", "TEXT DEFAULT '30 мл'")
     ensure_column(cur, "orders", "tg_first_name", "TEXT")
     ensure_column(cur, "orders", "tg_last_name", "TEXT")
@@ -332,6 +341,31 @@ def update_order_payment(order_id, invoice_id=None, page_url=None, status=None):
     conn.close()
 
 
+def save_admin_order_message(order_id, admin_id, message_id):
+    conn = db()
+    conn.execute(
+        """
+        INSERT INTO admin_order_messages (order_id, admin_id, message_id)
+        VALUES (?, ?, ?)
+        ON CONFLICT(order_id, admin_id) DO UPDATE SET
+            message_id=excluded.message_id
+        """,
+        (order_id, str(admin_id), message_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_admin_order_message(order_id, admin_id):
+    conn = db()
+    row = conn.execute(
+        "SELECT message_id FROM admin_order_messages WHERE order_id=? AND admin_id=?",
+        (order_id, str(admin_id)),
+    ).fetchone()
+    conn.close()
+    return row["message_id"] if row else None
+
+
 def admin_panel_markup():
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
@@ -396,6 +430,36 @@ async def send_admin_message(text, reply_markup=None):
             )
         except Exception:
             logger.exception("Failed to send admin message to %s", admin_id)
+
+
+async def send_or_edit_admin_order_message(order_id, text, reply_markup=None, edit=False):
+    for admin_id in ADMIN_IDS:
+        try:
+            message_id = get_admin_order_message(order_id, admin_id) if edit else None
+            if message_id:
+                try:
+                    await bot.edit_message_text(
+                        text,
+                        chat_id=int(admin_id),
+                        message_id=int(message_id),
+                        reply_markup=reply_markup,
+                    )
+                    continue
+                except TelegramBadRequest as exc:
+                    if "message is not modified" in exc.message.lower():
+                        continue
+                    logger.warning("Could not edit admin order message %s/%s: %s", order_id, admin_id, exc.message)
+
+            sent = await bot.send_message(int(admin_id), text, reply_markup=reply_markup)
+            save_admin_order_message(order_id, admin_id, sent.message_id)
+        except TelegramBadRequest as exc:
+            logger.warning(
+                "Cannot send admin order message to %s: %s. Check ADMIN_IDS and make sure this account pressed /start.",
+                admin_id,
+                exc.message,
+            )
+        except Exception:
+            logger.exception("Failed to send/edit admin order message to %s", admin_id)
 
 
 def order_text(order_id, data_or_order, paid=False):
@@ -704,9 +768,11 @@ async def api_payment_create(request: Request):
         return JSONResponse({"error": "Monobank не повернув invoiceId/pageUrl"}, status_code=502)
 
     update_order_payment(order_id, invoice_id=invoice_id, page_url=page_url, status="payment_waiting")
+    saved_order = get_order(order_id)
 
-    await send_admin_message(
-        order_text(order_id, data, paid=False),
+    await send_or_edit_admin_order_message(
+        order_id,
+        order_text(order_id, saved_order or data, paid=False),
         reply_markup=admin_panel_markup(),
     )
 
@@ -739,9 +805,11 @@ async def api_payment_status(orderId: str):
                 f"✅ Оплату отримано!\nЗамовлення #{order['id']} передано в обробку.",
             )
         if order:
-            await send_admin_message(
+            await send_or_edit_admin_order_message(
+                order["id"],
                 order_text(order["id"], order, paid=True),
                 reply_markup=admin_panel_markup(),
+                edit=True,
             )
     elif status in {"failure", "expired", "reversed"} and order.get("status") != status:
         update_order_payment(orderId, status=status)
@@ -783,6 +851,37 @@ async def api_admin_orders(request: Request):
         ORDER BY created_at DESC
         LIMIT 50
         """
+    ).fetchall()
+    conn.close()
+
+    orders: list[dict[str, object]] = []
+    for row in rows:
+        item: dict[str, object] = dict(row)
+        try:
+            item["items"] = json.loads(item.pop("items_json") or "[]")
+        except json.JSONDecodeError:
+            item["items"] = []
+        orders.append(item)
+
+    return {"orders": orders}
+
+
+@app.get("/api/orders/my")
+async def api_my_orders(request: Request):
+    user = verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
+    if not user:
+        return JSONResponse({"error": "Telegram користувача не підтверджено"}, status_code=403)
+
+    conn = db()
+    rows = conn.execute(
+        """
+        SELECT id, items_json, total, status, city, warehouse, created_at, paid_at, mono_page_url
+        FROM orders
+        WHERE tg_user_id=?
+        ORDER BY created_at DESC
+        LIMIT 30
+        """,
+        (user.get("id"),),
     ).fetchall()
     conn.close()
 
@@ -911,9 +1010,11 @@ async def mono_webhook(request: Request):
                 int(paid_order["tg_user_id"]),
                 f"✅ Оплату отримано!\nЗамовлення #{paid_order['id']} передано в обробку.",
             )
-        await send_admin_message(
+        await send_or_edit_admin_order_message(
+            paid_order["id"],
             order_text(paid_order["id"], paid_order, paid=True),
             reply_markup=admin_panel_markup(),
+            edit=True,
         )
     elif status in {"failure", "expired", "reversed"}:
         update_order_payment(order["id"], status=status)
