@@ -100,6 +100,16 @@ def init_db():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_contacts (
+            tg_user_id INTEGER PRIMARY KEY,
+            first_name TEXT,
+            last_name TEXT,
+            phone TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     ensure_column(cur, "products", "volume", "TEXT DEFAULT '30 мл'")
     ensure_column(cur, "orders", "phone_shared", "INTEGER DEFAULT 0")
     ensure_column(cur, "orders", "mono_invoice_id", "TEXT")
@@ -207,12 +217,52 @@ def get_order_by_invoice(invoice_id):
     return dict(row) if row else None
 
 
+def save_user_contact(tg_user_id, first_name, last_name, phone):
+    conn = db()
+    conn.execute(
+        """
+        INSERT INTO user_contacts (tg_user_id, first_name, last_name, phone, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(tg_user_id) DO UPDATE SET
+            first_name=excluded.first_name,
+            last_name=excluded.last_name,
+            phone=excluded.phone,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (tg_user_id, first_name or "", last_name or "", phone),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_saved_contact(tg_user_id):
+    if not tg_user_id:
+        return None
+    conn = db()
+    row = conn.execute(
+        "SELECT first_name, last_name, phone FROM user_contacts WHERE tg_user_id=?",
+        (tg_user_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def save_order(data):
     order_id = data.get("orderId") or os.urandom(4).hex()
     customer = data.get("customer") or {}
     delivery = data.get("delivery") or {}
     items = data.get("items") or []
     total = int(data.get("total") or 0)
+    tg_user_id = customer.get("telegramId")
+    phone = customer.get("phone", "")
+    saved_contact = get_saved_contact(tg_user_id)
+    if customer.get("phoneShared") and not phone and saved_contact:
+        phone = saved_contact.get("phone", "")
+    name = customer.get("name")
+    if (not name or not str(name).strip()) and saved_contact:
+        name = " ".join(
+            part for part in [saved_contact.get("first_name"), saved_contact.get("last_name")] if part
+        )
 
     conn = db()
     conn.execute(
@@ -225,10 +275,10 @@ def save_order(data):
         """,
         (
             order_id,
-            customer.get("telegramId"),
+            tg_user_id,
             customer.get("username"),
-            customer.get("name"),
-            customer.get("phone", ""),
+            name,
+            phone,
             1 if customer.get("phoneShared") else 0,
             delivery.get("city"),
             delivery.get("cityRef"),
@@ -549,6 +599,20 @@ async def api_products():
     return [product_row_to_dict(p) for p in products]
 
 
+@app.get("/api/contact/me")
+async def api_contact_me(request: Request):
+    user = verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
+    if not user:
+        return JSONResponse({"error": "Telegram користувача не підтверджено"}, status_code=403)
+
+    contact = get_saved_contact(user.get("id"))
+    if not contact:
+        return {"phone": "", "name": ""}
+
+    name = " ".join(part for part in [contact.get("first_name"), contact.get("last_name")] if part)
+    return {"phone": contact.get("phone", ""), "name": name}
+
+
 @app.get("/api/np/cities")
 async def api_np_cities(q: str = ""):
     q = q.strip()
@@ -619,7 +683,7 @@ async def api_admin_orders(request: Request):
     conn = db()
     rows = conn.execute(
         """
-        SELECT id, tg_username, name, phone, phone_shared, city, warehouse,
+        SELECT id, tg_user_id, tg_username, name, phone, phone_shared, city, warehouse,
                items_json, total, status, created_at, paid_at
         FROM orders
         ORDER BY created_at DESC
@@ -799,6 +863,12 @@ async def contact_received(message: types.Message):
     contact = message.contact
     if not contact or not contact.phone_number:
         return
+    save_user_contact(
+        message.from_user.id,
+        contact.first_name or message.from_user.first_name,
+        contact.last_name or message.from_user.last_name,
+        contact.phone_number,
+    )
     await message.answer(
         f"✅ Телефон отримано: {contact.phone_number}\n"
         "Тепер можете повернутися до оформлення замовлення."

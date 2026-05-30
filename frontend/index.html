@@ -544,6 +544,37 @@ function initCustomerFields() {
     nameEl.value = [user.first_name, user.last_name].filter(Boolean).join(' ');
   }
   updateContactButton();
+  syncSavedContact(false);
+}
+async function syncSavedContact(showMessage = true) {
+  if (!isTelegram) return false;
+  try {
+    const res = await fetch('/api/contact/me', {headers: authHeaders()});
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data?.phone) return false;
+
+    customerPhone = '';
+    const phoneEl = document.getElementById('payPhone');
+    phoneEl.value = data.phone;
+    phoneEl.style.display = 'block';
+
+    const nameEl = document.getElementById('payName');
+    if (!nameEl.value.trim() && data.name) nameEl.value = data.name;
+
+    updateContactButton();
+    if (showMessage) showToast('✅ Телефон додано');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+async function waitForSavedContact() {
+  for (let i = 0; i < 6; i += 1) {
+    if (await syncSavedContact(i > 0)) return true;
+    await new Promise(resolve => setTimeout(resolve, 700));
+  }
+  return false;
 }
 function updateContactButton() {
   const btn = document.getElementById('contactBtn');
@@ -579,7 +610,8 @@ function requestPhone() {
       if (sent) {
         customerPhone = 'shared';
         updateContactButton();
-        showToast('✅ Телефон надіслано');
+        showToast('✅ Телефон надіслано, отримуємо номер...');
+        waitForSavedContact();
       } else {
         customerPhone = '';
         phoneEl.style.display = 'block';
@@ -791,7 +823,9 @@ async function renderAdminOrders() {
       .join(' · ');
     const statusClass = o.status === 'paid' ? 'done' : 'new';
     const statusText = o.status === 'paid' ? 'Оплачено' : 'Очікує оплату';
-    const phone = o.phone || (o.phone_shared ? 'надіслано в Telegram' : '—');
+    const phone = o.phone || (o.phone_shared ? 'телефон ще не підтягнувся' : '—');
+    const tgName = o.tg_username ? '@' + o.tg_username : (o.tg_user_id ? 'ID ' + o.tg_user_id : 'Telegram —');
+    const createdAt = formatOrderTime(o.created_at);
 
     return `
       <div class="a-order">
@@ -801,9 +835,25 @@ async function renderAdminOrders() {
           <span class="a-badge ${statusClass}">${statusText}</span>
         </div>
         <div class="a-order-items">${escapeHtml(itemsText || 'Без товарів')} — ${Number(o.total || 0).toLocaleString('uk')} ₴</div>
+        <div class="a-order-items">🕒 ${escapeHtml(createdAt)} · ${escapeHtml(tgName)}</div>
         <div class="a-order-items">📞 ${escapeHtml(phone)} · ${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
       </div>`;
   }).join('');
+}
+
+function formatOrderTime(value) {
+  if (!value) return '—';
+  const normalized = String(value).includes('T') ? String(value) : String(value).replace(' ', 'T') + 'Z';
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('uk-UA', {
+    timeZone:'Europe/Kyiv',
+    day:'2-digit',
+    month:'2-digit',
+    year:'2-digit',
+    hour:'2-digit',
+    minute:'2-digit'
+  });
 }
 
 function renderAdminProds() {
