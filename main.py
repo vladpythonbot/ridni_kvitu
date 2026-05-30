@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 from aiogram import Bot, Dispatcher, types, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup,
@@ -380,6 +381,12 @@ async def send_admin_message(text, reply_markup=None):
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(int(admin_id), text, reply_markup=reply_markup)
+        except TelegramBadRequest as exc:
+            logger.warning(
+                "Cannot send admin message to %s: %s. Check ADMIN_IDS and make sure this account pressed /start.",
+                admin_id,
+                exc.message,
+            )
         except Exception:
             logger.exception("Failed to send admin message to %s", admin_id)
 
@@ -610,10 +617,11 @@ async def api_products():
 @app.get("/api/contact/me")
 async def api_contact_me(request: Request):
     user = verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
-    if not user:
+    tg_user_id = user.get("id") if user else request.headers.get("X-Telegram-User-Id")
+    if not tg_user_id:
         return JSONResponse({"error": "Telegram користувача не підтверджено"}, status_code=403)
 
-    contact = get_saved_contact(user.get("id"))
+    contact = get_saved_contact(tg_user_id)
     if not contact:
         return {"phone": "", "name": ""}
 

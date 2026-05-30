@@ -300,7 +300,10 @@ if (tg) { tg.ready(); tg.expand(); }
 const isTelegram = Boolean(tg?.initData || tg?.initDataUnsafe?.user?.id);
 let isAdmin = false;
 function authHeaders() {
-  return {'X-Telegram-Init-Data': tg?.initData || ''};
+  return {
+    'X-Telegram-Init-Data': tg?.initData || '',
+    'X-Telegram-User-Id': tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : ''
+  };
 }
 async function initAdminAccess() {
   if (!isTelegram) return;
