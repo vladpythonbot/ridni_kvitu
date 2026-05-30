@@ -152,9 +152,10 @@ textarea.form-input{resize:none;line-height:1.5}
 .a-badge.done{background:var(--green-light);color:var(--green)}
 .a-badge.ship{background:#EAF1FB;color:#1A5FAA}
 .a-order-items{font-size:12px;color:var(--muted)}
-.a-order-actions{display:flex;gap:8px;margin-top:8px}
+.a-order-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .a-order-action{flex:1;border:none;border-radius:10px;padding:8px 10px;font-family:'Jost',sans-serif;font-size:12px;cursor:pointer;background:var(--tg-bg);color:var(--tg-text);border:1px solid var(--border)}
 .a-order-action.done{background:var(--green-light);color:var(--green);border-color:transparent}
+.a-order-action.np{background:var(--gold-light);color:var(--marigold);border-color:transparent}
 .a-order-action.del{background:#FCEBEB;color:#A33A2B;border-color:transparent}
 .admin-prods-list{padding:0 16px;display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
 .a-prod{background:var(--tg-secondary);border-radius:14px;border:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;gap:10px}
@@ -597,6 +598,7 @@ async function renderHistory() {
         .join(' · ');
       const statusText = orderStatusText(o.status);
       const statusClass = o.status === 'paid' || o.status === 'received' ? 'done' : 'new';
+      const npText = o.np_ttn ? `ТТН: ${o.np_ttn}${o.np_status ? ' · ' + o.np_status : ''}` : '';
       return `
         <div class="c-item">
           <div class="c-emo">🧾</div>
@@ -604,6 +606,7 @@ async function renderHistory() {
             <div class="c-name">#${escapeHtml(o.id || '')} · ${escapeHtml(formatOrderTime(o.created_at))}</div>
             <div class="c-sub">${escapeHtml(itemsText || 'Без товарів')}</div>
             <div class="c-sub">${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
+            ${npText ? `<div class="c-sub">${escapeHtml(npText)}</div>` : ''}
           </div>
           <div class="c-right">
             <div class="c-price">${Number(o.total || 0).toLocaleString('uk')} ₴</div>
@@ -920,6 +923,9 @@ async function renderAdminOrders() {
       o.tg_username ? '@' + o.tg_username : ''
     ].filter(Boolean).join(' · ');
     const createdAt = formatOrderTime(o.created_at);
+    const npLine = o.np_ttn
+      ? `ТТН: ${escapeHtml(o.np_ttn)}${o.np_status ? ' · ' + escapeHtml(o.np_status) : ''}${o.np_checked_at ? ' · ' + escapeHtml(formatOrderTime(o.np_checked_at)) : ''}`
+      : 'ТТН не додано';
     const customerName = o.name || tgFullName || '—';
 
     return `
@@ -932,8 +938,11 @@ async function renderAdminOrders() {
         </div>
         <div class="a-order-items">${escapeHtml(itemsText || 'Без товарів')} — ${Number(o.total || 0).toLocaleString('uk')} ₴</div>
         <div class="a-order-items">Telegram: ${escapeHtml(tgName)}</div>
+        <div class="a-order-items">📮 ${npLine}</div>
         <div class="a-order-items">📞 ${escapeHtml(phone)} · ${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
         <div class="a-order-actions">
+          <button class="a-order-action np" onclick="setOrderTtn('${escapeHtml(o.id || '')}','${escapeHtml(o.np_ttn || '')}')">ТТН</button>
+          <button class="a-order-action np" onclick="checkNovaPoshtaOrder('${escapeHtml(o.id || '')}')" ${o.np_ttn ? '' : 'disabled'}>НП</button>
           <button class="a-order-action done" onclick="markOrderReceived('${escapeHtml(o.id || '')}')" ${o.status === 'received' ? 'disabled' : ''}>Отримано</button>
           <button class="a-order-action del" onclick="hideOrder('${escapeHtml(o.id || '')}')">Видалити</button>
         </div>
@@ -954,6 +963,28 @@ function formatOrderTime(value) {
     hour:'2-digit',
     minute:'2-digit'
   });
+}
+
+async function setOrderTtn(orderId, currentTtn) {
+  const ttn = prompt('Введіть ТТН Нової Пошти', currentTtn || '');
+  if (ttn === null) return;
+  const cleanTtn = String(ttn).replace(/\s+/g, '');
+  if (!/^\d{10,20}$/.test(cleanTtn)) {
+    showToast('⚠️ Введіть коректний ТТН');
+    return;
+  }
+  const r = await adminRequest('order/ttn', {orderId, ttn: cleanTtn});
+  if (!r) return;
+  showToast('✅ ТТН збережено');
+  await renderAdminOrders();
+}
+
+async function checkNovaPoshtaOrder(orderId) {
+  showToast('🔎 Перевіряємо Нову Пошту...');
+  const r = await adminRequest('order/np/check', {orderId});
+  if (!r) return;
+  showToast(r.order?.status === 'received' ? '✅ Посилку отримано' : '✅ Статус оновлено');
+  await renderAdminOrders();
 }
 
 async function markOrderReceived(orderId) {

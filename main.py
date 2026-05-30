@@ -35,6 +35,7 @@ WEBAPP_URL = (os.getenv("WEBAPP_URL") or "").rstrip("/")
 NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
 MONO_TOKEN = os.getenv("MONO_TOKEN", "").strip()
 DATABASE_PATH = os.getenv("DATABASE_PATH", "shop.db").strip() or "shop.db"
+NP_TRACKING_INTERVAL_SECONDS = int(os.getenv("NP_TRACKING_INTERVAL_SECONDS", "1800"))
 ADMIN_IDS = {
     item.strip()
     for item in (os.getenv("ADMIN_IDS") or os.getenv("ADMIN_ID") or os.getenv("ADMIN_CHAT_ID") or "").split(",")
@@ -108,7 +109,11 @@ def init_db():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             paid_at TEXT,
             received_at TEXT,
-            hidden_at TEXT
+            hidden_at TEXT,
+            np_ttn TEXT,
+            np_status TEXT,
+            np_status_code TEXT,
+            np_checked_at TEXT
         )
     """)
 
@@ -140,6 +145,10 @@ def init_db():
     ensure_column(cur, "orders", "paid_at", "TEXT")
     ensure_column(cur, "orders", "received_at", "TEXT")
     ensure_column(cur, "orders", "hidden_at", "TEXT")
+    ensure_column(cur, "orders", "np_ttn", "TEXT")
+    ensure_column(cur, "orders", "np_status", "TEXT")
+    ensure_column(cur, "orders", "np_status_code", "TEXT")
+    ensure_column(cur, "orders", "np_checked_at", "TEXT")
 
     cur.execute("SELECT COUNT(*) AS count FROM products")
     if cur.fetchone()["count"] == 0:
@@ -347,6 +356,29 @@ def update_order_payment(order_id, invoice_id=None, page_url=None, status=None):
     conn.close()
 
 
+def update_order_np(order_id, ttn=None, np_status=None, np_status_code=None, mark_checked=False):
+    sets = []
+    params = []
+    if ttn is not None:
+        sets.append("np_ttn=?")
+        params.append(ttn)
+    if np_status is not None:
+        sets.append("np_status=?")
+        params.append(np_status)
+    if np_status_code is not None:
+        sets.append("np_status_code=?")
+        params.append(str(np_status_code))
+    if mark_checked:
+        sets.append("np_checked_at=CURRENT_TIMESTAMP")
+    if not sets:
+        return
+    params.append(order_id)
+    conn = db()
+    conn.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", params)
+    conn.commit()
+    conn.close()
+
+
 def save_admin_order_message(order_id, admin_id, message_id):
     conn = db()
     conn.execute(
@@ -482,6 +514,9 @@ def order_text(order_id, data_or_order, paid=False):
         delivery = {
             "city": data_or_order.get("city"),
             "warehouse": data_or_order.get("warehouse"),
+            "npTtn": data_or_order.get("np_ttn"),
+            "npStatus": data_or_order.get("np_status"),
+            "npStatusCode": data_or_order.get("np_status_code"),
         }
         total = data_or_order.get("total")
         comment = data_or_order.get("comment")
@@ -506,6 +541,8 @@ def order_text(order_id, data_or_order, paid=False):
         "",
         f"🏙 {delivery.get('city') or '—'}",
         f"📦 {delivery.get('warehouse') or '—'}",
+        *(["ТТН: " + str(delivery.get("npTtn"))] if delivery.get("npTtn") else []),
+        *(["НП: " + str(delivery.get("npStatus"))] if delivery.get("npStatus") else []),
         "",
         "<b>Товари:</b>",
     ])
@@ -609,6 +646,117 @@ async def np_search_warehouses(city_ref, query=""):
     ]
 
 
+def normalize_phone_for_np(phone):
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    if digits.startswith("380") and len(digits) == 12:
+        return digits
+    if digits.startswith("0") and len(digits) == 10:
+        return "38" + digits
+    return digits
+
+
+def np_status_is_received(status, status_code):
+    code = str(status_code or "").strip()
+    text = str(status or "").lower()
+    return code in {"9", "10", "11"} or "отрим" in text or "получ" in text
+
+
+async def np_tracking_status(ttn, phone=""):
+    document = {"DocumentNumber": str(ttn).strip()}
+    normalized_phone = normalize_phone_for_np(phone)
+    if normalized_phone:
+        document["Phone"] = normalized_phone
+
+    data = await asyncio.to_thread(
+        nova_poshta_request,
+        "TrackingDocument",
+        "getStatusDocuments",
+        {"Documents": [document]},
+    )
+    if not data:
+        raise RuntimeError("Nova Poshta не повернула статус посилки")
+
+    item = data[0]
+    return {
+        "ttn": item.get("Number") or ttn,
+        "status": item.get("Status") or item.get("StatusDescription") or "",
+        "statusCode": item.get("StatusCode") or "",
+    }
+
+
+async def refresh_order_np_status(order_id):
+    order = get_order(order_id)
+    if not order:
+        raise RuntimeError("Замовлення не знайдено")
+    ttn = str(order.get("np_ttn") or "").strip()
+    if not ttn:
+        raise RuntimeError("Спочатку додайте ТТН")
+
+    status = await np_tracking_status(ttn, order.get("phone"))
+    update_order_np(
+        order_id,
+        ttn=status["ttn"],
+        np_status=status["status"],
+        np_status_code=status["statusCode"],
+        mark_checked=True,
+    )
+
+    if np_status_is_received(status["status"], status["statusCode"]):
+        update_order_payment(order_id, status="received")
+
+    updated_order = get_order(order_id)
+    await send_or_edit_admin_order_message(
+        order_id,
+        order_text(order_id, updated_order, paid=updated_order.get("status") in {"paid", "received"}),
+        reply_markup=admin_panel_markup(),
+        edit=True,
+    )
+
+    if updated_order and updated_order.get("status") == "received" and updated_order.get("tg_user_id") and order.get("status") != "received":
+        try:
+            await bot.send_message(
+                int(updated_order["tg_user_id"]),
+                f"📦 Замовлення #{order_id} отримано. Дякуємо, що обрали Рідні квіти!",
+            )
+        except Exception:
+            logger.exception("Failed to notify user about NP received order %s", order_id)
+
+    return updated_order
+
+
+async def np_tracking_worker():
+    if not NP_API_KEY:
+        logger.info("Nova Poshta tracking disabled: NP_API_KEY is not set")
+        return
+
+    while True:
+        await asyncio.sleep(max(NP_TRACKING_INTERVAL_SECONDS, 300))
+        try:
+            conn = db()
+            rows = conn.execute(
+                """
+                SELECT id
+                FROM orders
+                WHERE hidden_at IS NULL
+                  AND np_ttn IS NOT NULL
+                  AND TRIM(np_ttn) != ''
+                  AND status != 'received'
+                ORDER BY COALESCE(np_checked_at, '1970-01-01') ASC
+                LIMIT 20
+                """
+            ).fetchall()
+            conn.close()
+
+            for row in rows:
+                try:
+                    await refresh_order_np_status(row["id"])
+                    await asyncio.sleep(1)
+                except Exception:
+                    logger.exception("Nova Poshta tracking failed for order %s", row["id"])
+        except Exception:
+            logger.exception("Nova Poshta tracking worker failed")
+
+
 # ====================== MONOBANK ======================
 def monobank_request(path, payload):
     if not MONO_TOKEN:
@@ -692,6 +840,7 @@ async def lifespan(app: FastAPI):
     if RUN_BOT:
         await configure_bot_profile()
         asyncio.create_task(start_bot())
+        asyncio.create_task(np_tracking_worker())
         logger.info("🤖 Бот запущений")
     else:
         logger.info("🌐 RUN_BOT=0, бот не запускається")
@@ -852,7 +1001,8 @@ async def api_admin_orders(request: Request):
     rows = conn.execute(
         """
         SELECT id, tg_user_id, tg_username, tg_first_name, tg_last_name, name, phone, phone_shared, city, warehouse,
-               items_json, total, status, created_at, paid_at, received_at
+               items_json, total, status, created_at, paid_at, received_at,
+               np_ttn, np_status, np_status_code, np_checked_at
         FROM orders
         WHERE hidden_at IS NULL
         ORDER BY created_at DESC
@@ -882,7 +1032,8 @@ async def api_my_orders(request: Request):
     conn = db()
     rows = conn.execute(
         """
-        SELECT id, items_json, total, status, city, warehouse, created_at, paid_at, received_at, mono_page_url
+        SELECT id, items_json, total, status, city, warehouse, created_at, paid_at, received_at, mono_page_url,
+               np_ttn, np_status, np_status_code, np_checked_at
         FROM orders
         WHERE tg_user_id=?
         ORDER BY created_at DESC
@@ -935,6 +1086,53 @@ async def api_admin_order_received(request: Request):
             )
         except Exception:
             logger.exception("Failed to notify user about received order %s", order_id)
+
+    return {"ok": True, "order": updated_order}
+
+
+@app.post("/api/admin/order/ttn")
+async def api_admin_order_ttn(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    order_id = str(data.get("orderId") or "").strip()
+    ttn = str(data.get("ttn") or "").strip().replace(" ", "")
+    if not order_id:
+        return JSONResponse({"error": "Невірний ID замовлення"}, status_code=400)
+    if not ttn or not ttn.isdigit() or len(ttn) < 10:
+        return JSONResponse({"error": "Введіть коректний ТТН Нової Пошти"}, status_code=400)
+
+    order = get_order(order_id)
+    if not order:
+        return JSONResponse({"error": "Замовлення не знайдено"}, status_code=404)
+
+    update_order_np(order_id, ttn=ttn, np_status="", np_status_code="", mark_checked=False)
+    updated_order = get_order(order_id)
+    await send_or_edit_admin_order_message(
+        order_id,
+        order_text(order_id, updated_order, paid=updated_order.get("status") in {"paid", "received"}),
+        reply_markup=admin_panel_markup(),
+        edit=True,
+    )
+    return {"ok": True, "order": updated_order}
+
+
+@app.post("/api/admin/order/np/check")
+async def api_admin_order_np_check(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    order_id = str(data.get("orderId") or "").strip()
+    if not order_id:
+        return JSONResponse({"error": "Невірний ID замовлення"}, status_code=400)
+
+    try:
+        updated_order = await refresh_order_np_status(order_id)
+    except Exception as exc:
+        logger.exception("Nova Poshta status check failed for order %s", order_id)
+        return JSONResponse({"error": str(exc)}, status_code=502)
 
     return {"ok": True, "order": updated_order}
 
