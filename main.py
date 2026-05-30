@@ -82,6 +82,8 @@ def init_db():
             id TEXT PRIMARY KEY,
             tg_user_id INTEGER,
             tg_username TEXT,
+            tg_first_name TEXT,
+            tg_last_name TEXT,
             name TEXT,
             phone TEXT,
             phone_shared INTEGER DEFAULT 0,
@@ -111,6 +113,8 @@ def init_db():
     """)
 
     ensure_column(cur, "products", "volume", "TEXT DEFAULT '30 мл'")
+    ensure_column(cur, "orders", "tg_first_name", "TEXT")
+    ensure_column(cur, "orders", "tg_last_name", "TEXT")
     ensure_column(cur, "orders", "phone_shared", "INTEGER DEFAULT 0")
     ensure_column(cur, "orders", "mono_invoice_id", "TEXT")
     ensure_column(cur, "orders", "mono_page_url", "TEXT")
@@ -268,15 +272,17 @@ def save_order(data):
     conn.execute(
         """
         INSERT OR REPLACE INTO orders (
-            id, tg_user_id, tg_username, name, phone, phone_shared,
+            id, tg_user_id, tg_username, tg_first_name, tg_last_name, name, phone, phone_shared,
             city, city_ref, warehouse, warehouse_ref,
             comment, items_json, total, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             order_id,
             tg_user_id,
             customer.get("username"),
+            customer.get("firstName"),
+            customer.get("lastName"),
             name,
             phone,
             1 if customer.get("phoneShared") else 0,
@@ -386,6 +392,8 @@ def order_text(order_id, data_or_order, paid=False):
             "phone": data_or_order.get("phone"),
             "phoneShared": bool(data_or_order.get("phone_shared")),
             "username": data_or_order.get("tg_username"),
+            "firstName": data_or_order.get("tg_first_name"),
+            "lastName": data_or_order.get("tg_last_name"),
         }
         delivery = {
             "city": data_or_order.get("city"),
@@ -405,7 +413,7 @@ def order_text(order_id, data_or_order, paid=False):
     lines = [
         f"{title} #{order_id}",
         "",
-        f"👤 {customer.get('name') or '—'}",
+        f"👤 {customer.get('name') or ' '.join(part for part in [customer.get('firstName'), customer.get('lastName')] if part) or '—'}",
         f"📞 {phone}",
     ]
     if customer.get("username"):
@@ -683,7 +691,7 @@ async def api_admin_orders(request: Request):
     conn = db()
     rows = conn.execute(
         """
-        SELECT id, tg_user_id, tg_username, name, phone, phone_shared, city, warehouse,
+        SELECT id, tg_user_id, tg_username, tg_first_name, tg_last_name, name, phone, phone_shared, city, warehouse,
                items_json, total, status, created_at, paid_at
         FROM orders
         ORDER BY created_at DESC

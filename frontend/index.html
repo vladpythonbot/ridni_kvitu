@@ -606,7 +606,7 @@ function requestPhone() {
   const phoneEl = document.getElementById('payPhone');
   if (isTelegram && tg?.requestContact) {
     tg.requestContact((status) => {
-      const sent = status === true || status?.status === 'sent';
+      const sent = status === true || status === 'sent' || status?.status === 'sent';
       if (sent) {
         customerPhone = 'shared';
         updateContactButton();
@@ -753,14 +753,17 @@ function submitOrder() {
   const comment = document.getElementById('payComment').value.trim();
   if (!name || (!phoneShared && !phone) || !selectedCity || !selectedWarehouse) { showToast('⚠️ Додайте імʼя, телефон, місто і відділення'); return; }
   const total = cartTotal();
+  const user = tg?.initDataUnsafe?.user || {};
   const payload = {
     orderId: Date.now().toString(36),
     customer: {
       name,
       phone,
       phoneShared,
-      telegramId: tg?.initDataUnsafe?.user?.id || null,
-      username: tg?.initDataUnsafe?.user?.username || ''
+      telegramId: user.id || null,
+      username: user.username || '',
+      firstName: user.first_name || '',
+      lastName: user.last_name || ''
     },
     delivery: {
       city: selectedCity.name,
@@ -824,14 +827,20 @@ async function renderAdminOrders() {
     const statusClass = o.status === 'paid' ? 'done' : 'new';
     const statusText = o.status === 'paid' ? 'Оплачено' : 'Очікує оплату';
     const phone = o.phone || (o.phone_shared ? 'телефон ще не підтягнувся' : '—');
-    const tgName = o.tg_username ? '@' + o.tg_username : (o.tg_user_id ? 'ID ' + o.tg_user_id : 'Telegram —');
+    const tgFullName = [o.tg_first_name, o.tg_last_name].filter(Boolean).join(' ');
+    const tgName = [
+      tgFullName || 'Telegram',
+      o.tg_username ? '@' + o.tg_username : '',
+      o.tg_user_id ? 'ID ' + o.tg_user_id : ''
+    ].filter(Boolean).join(' · ');
     const createdAt = formatOrderTime(o.created_at);
+    const customerName = o.name || tgFullName || '—';
 
     return `
       <div class="a-order">
         <div class="a-order-top">
           <span class="a-order-id">#${escapeHtml(o.id || '')}</span>
-          <span class="a-order-name">${escapeHtml(o.name || '—')}</span>
+          <span class="a-order-name">${escapeHtml(customerName)}</span>
           <span class="a-badge ${statusClass}">${statusText}</span>
         </div>
         <div class="a-order-items">${escapeHtml(itemsText || 'Без товарів')} — ${Number(o.total || 0).toLocaleString('uk')} ₴</div>
