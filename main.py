@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import logging
+import shutil
 import sqlite3
 import urllib.request
 import urllib.error
@@ -33,6 +34,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN") or ""
 WEBAPP_URL = (os.getenv("WEBAPP_URL") or "").rstrip("/")
 NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
 MONO_TOKEN = os.getenv("MONO_TOKEN", "").strip()
+DATABASE_PATH = os.getenv("DATABASE_PATH", "shop.db").strip() or "shop.db"
 ADMIN_IDS = {
     item.strip()
     for item in (os.getenv("ADMIN_IDS") or os.getenv("ADMIN_ID") or os.getenv("ADMIN_CHAT_ID") or "").split(",")
@@ -51,7 +53,12 @@ dp = Dispatcher()
 
 
 def db():
-    conn = sqlite3.connect("shop.db")
+    db_dir = os.path.dirname(DATABASE_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+    if DATABASE_PATH != "shop.db" and not os.path.exists(DATABASE_PATH) and os.path.exists("shop.db"):
+        shutil.copyfile("shop.db", DATABASE_PATH)
+    conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -553,6 +560,26 @@ def monobank_request(path, payload):
         raise RuntimeError(f"Monobank недоступний: {exc}") from exc
 
 
+def monobank_get(path, query):
+    if not MONO_TOKEN:
+        raise RuntimeError("MONO_TOKEN не налаштовано")
+
+    url = "https://api.monobank.ua" + path + "?" + urllib.parse.urlencode(query)
+    req = urllib.request.Request(
+        url,
+        headers={"X-Token": MONO_TOKEN},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Monobank HTTP {exc.code}: {body}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Monobank недоступний: {exc}") from exc
+
+
 async def create_mono_invoice(order_id, data):
     total = int(data.get("total") or 0)
     items = data.get("items") or []
@@ -578,6 +605,14 @@ async def create_mono_invoice(order_id, data):
         },
     }
     return await asyncio.to_thread(monobank_request, "/api/merchant/invoice/create", payload)
+
+
+async def get_mono_invoice_status(invoice_id):
+    return await asyncio.to_thread(
+        monobank_get,
+        "/api/merchant/invoice/status",
+        {"invoiceId": invoice_id},
+    )
 
 
 # ====================== FASTAPI ======================
@@ -676,6 +711,49 @@ async def api_payment_create(request: Request):
     )
 
     return {"ok": True, "orderId": order_id, "invoiceId": invoice_id, "paymentUrl": page_url}
+
+
+@app.get("/api/payment/status")
+async def api_payment_status(orderId: str):
+    order = get_order(orderId)
+    if not order:
+        return JSONResponse({"error": "Замовлення не знайдено"}, status_code=404)
+
+    invoice_id = order.get("mono_invoice_id")
+    if not invoice_id:
+        return {"ok": True, "orderId": orderId, "status": order.get("status"), "paymentUrl": order.get("mono_page_url")}
+
+    try:
+        mono_status = await get_mono_invoice_status(invoice_id)
+    except Exception as exc:
+        logger.exception("Monobank status check failed")
+        return JSONResponse({"error": str(exc)}, status_code=502)
+
+    status = mono_status.get("status")
+    if status == "success" and order.get("status") != "paid":
+        update_order_payment(orderId, status="paid")
+        order = get_order(orderId)
+        if order and order.get("tg_user_id"):
+            await bot.send_message(
+                int(order["tg_user_id"]),
+                f"✅ Оплату отримано!\nЗамовлення #{order['id']} передано в обробку.",
+            )
+        if order:
+            await send_admin_message(
+                order_text(order["id"], order, paid=True),
+                reply_markup=admin_panel_markup(),
+            )
+    elif status in {"failure", "expired", "reversed"} and order.get("status") != status:
+        update_order_payment(orderId, status=status)
+
+    updated_order = get_order(orderId)
+    return {
+        "ok": True,
+        "orderId": orderId,
+        "status": updated_order.get("status") if updated_order else order.get("status"),
+        "monoStatus": status,
+        "paymentUrl": order.get("mono_page_url"),
+    }
 
 
 @app.get("/api/admin/me")

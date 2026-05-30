@@ -146,6 +146,7 @@ textarea.form-input{resize:none;line-height:1.5}
 .a-order-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .a-order-id{font-size:13px;font-weight:500;color:var(--bark-mid)}
 .a-order-name{flex:1;font-size:14px;color:var(--tg-text)}
+.a-order-time{font-size:11px;color:var(--muted);white-space:nowrap}
 .a-badge{font-size:10px;padding:3px 9px;border-radius:10px;white-space:nowrap}
 .a-badge.new{background:var(--gold-light);color:var(--marigold)}
 .a-badge.done{background:var(--green-light);color:var(--green)}
@@ -384,6 +385,23 @@ async function loadProducts() {
   renderProducts();
   if (currentTab === 'cart') renderCart();
   if (currentTab === 'admin' && isAdmin) renderAdminProds();
+}
+async function checkReturnedPayment() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('payment') !== 'done' || !params.get('orderId')) return;
+
+  try {
+    const res = await fetch('/api/payment/status?orderId=' + encodeURIComponent(params.get('orderId')));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Не вдалося перевірити оплату');
+    if (data.status === 'paid') {
+      showToast('✅ Оплату отримано');
+    } else {
+      showToast('⏳ Оплата ще перевіряється');
+    }
+  } catch (e) {
+    showToast('⚠️ ' + e.message);
+  }
 }
 function goTab(tab) {
   if (tab === currentTab || tab === 'order') return;
@@ -833,8 +851,7 @@ async function renderAdminOrders() {
     const tgFullName = [o.tg_first_name, o.tg_last_name].filter(Boolean).join(' ');
     const tgName = [
       tgFullName || 'Telegram',
-      o.tg_username ? '@' + o.tg_username : '',
-      o.tg_user_id ? 'ID ' + o.tg_user_id : ''
+      o.tg_username ? '@' + o.tg_username : ''
     ].filter(Boolean).join(' · ');
     const createdAt = formatOrderTime(o.created_at);
     const customerName = o.name || tgFullName || '—';
@@ -844,10 +861,11 @@ async function renderAdminOrders() {
         <div class="a-order-top">
           <span class="a-order-id">#${escapeHtml(o.id || '')}</span>
           <span class="a-order-name">${escapeHtml(customerName)}</span>
+          <span class="a-order-time">${escapeHtml(createdAt)}</span>
           <span class="a-badge ${statusClass}">${statusText}</span>
         </div>
         <div class="a-order-items">${escapeHtml(itemsText || 'Без товарів')} — ${Number(o.total || 0).toLocaleString('uk')} ₴</div>
-        <div class="a-order-items">🕒 ${escapeHtml(createdAt)} · ${escapeHtml(tgName)}</div>
+        <div class="a-order-items">Telegram: ${escapeHtml(tgName)}</div>
         <div class="a-order-items">📞 ${escapeHtml(phone)} · ${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
       </div>`;
   }).join('');
@@ -965,6 +983,7 @@ function showToast(msg) {
 loadProducts();
 syncCartUi();
 initAdminAccess();
+checkReturnedPayment();
 </script>
 </body>
 </html>
