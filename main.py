@@ -106,7 +106,9 @@ def init_db():
             mono_invoice_id TEXT,
             mono_page_url TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            paid_at TEXT
+            paid_at TEXT,
+            received_at TEXT,
+            hidden_at TEXT
         )
     """)
 
@@ -136,6 +138,8 @@ def init_db():
     ensure_column(cur, "orders", "mono_invoice_id", "TEXT")
     ensure_column(cur, "orders", "mono_page_url", "TEXT")
     ensure_column(cur, "orders", "paid_at", "TEXT")
+    ensure_column(cur, "orders", "received_at", "TEXT")
+    ensure_column(cur, "orders", "hidden_at", "TEXT")
 
     cur.execute("SELECT COUNT(*) AS count FROM products")
     if cur.fetchone()["count"] == 0:
@@ -332,6 +336,8 @@ def update_order_payment(order_id, invoice_id=None, page_url=None, status=None):
         params.append(status)
         if status == "paid":
             sets.append("paid_at=CURRENT_TIMESTAMP")
+        if status == "received":
+            sets.append("received_at=CURRENT_TIMESTAMP")
     if not sets:
         return
     params.append(order_id)
@@ -846,8 +852,9 @@ async def api_admin_orders(request: Request):
     rows = conn.execute(
         """
         SELECT id, tg_user_id, tg_username, tg_first_name, tg_last_name, name, phone, phone_shared, city, warehouse,
-               items_json, total, status, created_at, paid_at
+               items_json, total, status, created_at, paid_at, received_at
         FROM orders
+        WHERE hidden_at IS NULL
         ORDER BY created_at DESC
         LIMIT 50
         """
@@ -875,7 +882,7 @@ async def api_my_orders(request: Request):
     conn = db()
     rows = conn.execute(
         """
-        SELECT id, items_json, total, status, city, warehouse, created_at, paid_at, mono_page_url
+        SELECT id, items_json, total, status, city, warehouse, created_at, paid_at, received_at, mono_page_url
         FROM orders
         WHERE tg_user_id=?
         ORDER BY created_at DESC
@@ -895,6 +902,62 @@ async def api_my_orders(request: Request):
         orders.append(item)
 
     return {"orders": orders}
+
+
+@app.post("/api/admin/order/received")
+async def api_admin_order_received(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    order_id = str(data.get("orderId") or "").strip()
+    if not order_id:
+        return JSONResponse({"error": "Невірний ID замовлення"}, status_code=400)
+
+    order = get_order(order_id)
+    if not order:
+        return JSONResponse({"error": "Замовлення не знайдено"}, status_code=404)
+
+    update_order_payment(order_id, status="received")
+    updated_order = get_order(order_id)
+    await send_or_edit_admin_order_message(
+        order_id,
+        order_text(order_id, updated_order, paid=True),
+        reply_markup=admin_panel_markup(),
+        edit=True,
+    )
+
+    if updated_order and updated_order.get("tg_user_id"):
+        try:
+            await bot.send_message(
+                int(updated_order["tg_user_id"]),
+                f"📦 Замовлення #{order_id} позначено як отримане. Дякуємо!",
+            )
+        except Exception:
+            logger.exception("Failed to notify user about received order %s", order_id)
+
+    return {"ok": True, "order": updated_order}
+
+
+@app.post("/api/admin/order/delete")
+async def api_admin_order_delete(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    order_id = str(data.get("orderId") or "").strip()
+    if not order_id:
+        return JSONResponse({"error": "Невірний ID замовлення"}, status_code=400)
+
+    conn = db()
+    cur = conn.execute("UPDATE orders SET hidden_at=CURRENT_TIMESTAMP WHERE id=?", (order_id,))
+    conn.commit()
+    conn.close()
+
+    if cur.rowcount == 0:
+        return JSONResponse({"error": "Замовлення не знайдено"}, status_code=404)
+
+    return {"ok": True}
 
 
 @app.post("/api/admin/product/add")

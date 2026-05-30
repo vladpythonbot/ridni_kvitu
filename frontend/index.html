@@ -152,6 +152,10 @@ textarea.form-input{resize:none;line-height:1.5}
 .a-badge.done{background:var(--green-light);color:var(--green)}
 .a-badge.ship{background:#EAF1FB;color:#1A5FAA}
 .a-order-items{font-size:12px;color:var(--muted)}
+.a-order-actions{display:flex;gap:8px;margin-top:8px}
+.a-order-action{flex:1;border:none;border-radius:10px;padding:8px 10px;font-family:'Jost',sans-serif;font-size:12px;cursor:pointer;background:var(--tg-bg);color:var(--tg-text);border:1px solid var(--border)}
+.a-order-action.done{background:var(--green-light);color:var(--green);border-color:transparent}
+.a-order-action.del{background:#FCEBEB;color:#A33A2B;border-color:transparent}
 .admin-prods-list{padding:0 16px;display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
 .a-prod{background:var(--tg-secondary);border-radius:14px;border:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;gap:10px}
 .a-prod-emo{font-size:22px;flex-shrink:0}
@@ -592,6 +596,7 @@ async function renderHistory() {
         .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
         .join(' · ');
       const statusText = orderStatusText(o.status);
+      const statusClass = o.status === 'paid' || o.status === 'received' ? 'done' : 'new';
       return `
         <div class="c-item">
           <div class="c-emo">🧾</div>
@@ -602,7 +607,7 @@ async function renderHistory() {
           </div>
           <div class="c-right">
             <div class="c-price">${Number(o.total || 0).toLocaleString('uk')} ₴</div>
-            <div class="a-badge ${o.status === 'paid' ? 'done' : 'new'}">${statusText}</div>
+            <div class="a-badge ${statusClass}">${statusText}</div>
           </div>
         </div>`;
     }).join('') + '</div>';
@@ -611,6 +616,7 @@ async function renderHistory() {
   }
 }
 function orderStatusText(status) {
+  if (status === 'received') return 'Отримано';
   if (status === 'paid') return 'Оплачено';
   if (status === 'payment_waiting') return 'Очікує оплату';
   if (status === 'expired') return 'Прострочено';
@@ -905,8 +911,8 @@ async function renderAdminOrders() {
     const itemsText = (o.items || [])
       .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
       .join(' · ');
-    const statusClass = o.status === 'paid' ? 'done' : 'new';
-    const statusText = o.status === 'paid' ? 'Оплачено' : 'Очікує оплату';
+    const statusClass = o.status === 'paid' || o.status === 'received' ? 'done' : 'new';
+    const statusText = orderStatusText(o.status);
     const phone = o.phone || (o.phone_shared ? 'телефон ще не підтягнувся' : '—');
     const tgFullName = [o.tg_first_name, o.tg_last_name].filter(Boolean).join(' ');
     const tgName = [
@@ -927,6 +933,10 @@ async function renderAdminOrders() {
         <div class="a-order-items">${escapeHtml(itemsText || 'Без товарів')} — ${Number(o.total || 0).toLocaleString('uk')} ₴</div>
         <div class="a-order-items">Telegram: ${escapeHtml(tgName)}</div>
         <div class="a-order-items">📞 ${escapeHtml(phone)} · ${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
+        <div class="a-order-actions">
+          <button class="a-order-action done" onclick="markOrderReceived('${escapeHtml(o.id || '')}')" ${o.status === 'received' ? 'disabled' : ''}>Отримано</button>
+          <button class="a-order-action del" onclick="hideOrder('${escapeHtml(o.id || '')}')">Видалити</button>
+        </div>
       </div>`;
   }).join('');
 }
@@ -944,6 +954,24 @@ function formatOrderTime(value) {
     hour:'2-digit',
     minute:'2-digit'
   });
+}
+
+async function markOrderReceived(orderId) {
+  const ok = await confirmAction('Позначити замовлення як отримане?');
+  if (!ok) return;
+  const r = await adminRequest('order/received', {orderId});
+  if (!r) return;
+  showToast('✅ Позначено як отримане');
+  await renderAdminOrders();
+}
+
+async function hideOrder(orderId) {
+  const ok = await confirmAction('Видалити замовлення з адмін-панелі?');
+  if (!ok) return;
+  const r = await adminRequest('order/delete', {orderId});
+  if (!r) return;
+  showToast('🗑️ Замовлення приховано');
+  await renderAdminOrders();
 }
 
 function renderAdminProds() {
