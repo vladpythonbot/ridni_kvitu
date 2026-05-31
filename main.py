@@ -861,7 +861,9 @@ def monobank_get(path, query):
 async def create_mono_invoice(order_id, data):
     total = int(data.get("total") or 0)
     items = data.get("items") or []
-    redirect_url = f"https://t.me/{BOT_USERNAME}?start=paid_{order_id}" if BOT_USERNAME else f"{WEBAPP_URL}?payment=done&orderId={order_id}"
+    if not BOT_USERNAME:
+        raise RuntimeError("BOT_USERNAME не налаштовано. Додайте BOT_USERNAME у Railway, щоб після оплати повертати користувача в Telegram.")
+    redirect_url = f"https://t.me/{BOT_USERNAME}?start=paid_{order_id}"
     payload = {
         "amount": total * 100,
         "ccy": 980,
@@ -1395,10 +1397,8 @@ async def configure_bot_profile():
     )
     await bot.set_my_description(
         description=(
-            "🌸 Рідні квіти — маленька майстерня крафтового варення з квітів.\n\n"
-            "Спробуй мамину клубку на смак.\n\n"
-            "У магазині можна вибрати варення, оформити доставку Новою Поштою "
-            "та оплатити замовлення онлайн."
+            "🌸 Рідні квіти\n"
+            "Спробуй мамину клубку на смак."
         )
     )
     await bot.set_chat_menu_button(
@@ -1428,7 +1428,6 @@ async def start(message: types.Message):
             status_text = "✅ Оплату отримано." if order.get("status") in {"paid", "shipped", "received"} else "⏳ Оплата ще перевіряється."
             await message.answer(
                 f"{status_text}\nЗамовлення #{order_id}.",
-                reply_markup=kb,
             )
             return
 
