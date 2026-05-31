@@ -21,11 +21,10 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import (
-    ReplyKeyboardMarkup,
-    KeyboardButton,
     WebAppInfo,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    MenuButtonWebApp,
 )
 
 load_dotenv()
@@ -1331,15 +1330,21 @@ async def configure_bot_profile():
             "та оплатити замовлення онлайн."
         )
     )
+    await bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(text="Магазин", web_app=WebAppInfo(url=WEBAPP_URL))
+    )
 
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🫙 Відкрити магазин", web_app=WebAppInfo(url=WEBAPP_URL))]],
-        resize_keyboard=True,
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🫙 Відкрити магазин", web_app=WebAppInfo(url=WEBAPP_URL))
+    ]])
+    await message.answer(
+        "🌸 <b>Рідні квіти</b>\n\n"
+        "Відкривайте магазин цією кнопкою або кнопкою меню, щоб історія замовлень працювала коректно.",
+        reply_markup=kb,
     )
-    await message.answer("🌸 <b>Рідні квіти</b>", reply_markup=kb)
 
 
 @dp.message(Command("admin"))
