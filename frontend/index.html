@@ -114,6 +114,15 @@ textarea.form-input{resize:none;line-height:1.5}
 .order-summary-mini{margin:0 16px;padding:14px 16px;background:var(--tg-secondary);border-radius:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .osm-label{font-size:13px;color:var(--muted)}
 .osm-val{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--marigold);font-weight:500}
+.order-confirm{margin:10px 16px 0;padding:14px 16px;background:var(--tg-secondary);border-radius:14px;border:1px solid var(--border)}
+.order-confirm-title{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.order-confirm-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.order-confirm-row:last-child{border-bottom:none}
+.order-confirm-emo{width:28px;flex-shrink:0;font-size:20px;line-height:1.3}
+.order-confirm-info{flex:1;min-width:0}
+.order-confirm-name{font-size:14px;color:var(--tg-text);line-height:1.3}
+.order-confirm-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.order-confirm-sum{font-size:14px;font-weight:500;color:var(--marigold);white-space:nowrap}
 .mono-pay-btn{margin:14px 16px 0;width:calc(100% - 32px);background:#1A1A2E;color:#fff;border:none;border-radius:16px;padding:16px 20px;font-family:'Jost',sans-serif;font-size:15px;font-weight:400;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;-webkit-tap-highlight-color:transparent}
 .mono-pay-btn:active{background:#0F0F20}
 .mono-logo-badge{background:#fff;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:#1A1A2E;letter-spacing:-.5px;flex-shrink:0}
@@ -207,6 +216,7 @@ textarea.form-input{resize:none;line-height:1.5}
     <div class="screen hidden-right" id="screen-order">
       <div class="order-head">Оформлення</div>
       <div class="order-summary-mini"><span class="osm-label">До сплати</span><span class="osm-val" id="orderTotal">0 ₴</span></div>
+      <div class="order-confirm" id="orderConfirm"></div>
       <div class="order-form" style="margin-top:14px">
         <div class="form-section-label">Контактні дані</div>
         <input class="form-input" type="text" placeholder="Ім'я та прізвище" id="payName">
@@ -451,6 +461,7 @@ function goOrder() {
   nxt.classList.remove('hidden-left','hidden-right');
   nxt.classList.add('active');
   document.getElementById('orderTotal').textContent = cartTotal().toLocaleString('uk') + ' ₴';
+  renderOrderConfirm();
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   prevTab = currentTab;
   currentTab = 'order';
@@ -573,6 +584,27 @@ function renderCart() {
     ${!isTelegram ? `<button class="mono-pay-btn" style="margin:14px 16px 0;width:calc(100% - 32px)" onclick="goOrder()"><div class="mono-logo-badge">mono</div>Оформити замовлення</button>` : ''}
   `;
   updateMainButton();
+}
+function renderOrderConfirm() {
+  const el = document.getElementById('orderConfirm');
+  const items = Object.entries(cart);
+  if (!items.length) {
+    el.innerHTML = '<div class="order-confirm-title">Ваше замовлення</div><div class="suggest-empty">Кошик порожній</div>';
+    return;
+  }
+  const rows = items.map(([id, qty]) => {
+    const p = PRODUCTS.find(p => p.id == id);
+    if (!p) return '';
+    return `<div class="order-confirm-row">
+      <div class="order-confirm-emo">${p.emoji}</div>
+      <div class="order-confirm-info">
+        <div class="order-confirm-name">${escapeHtml(p.name)}</div>
+        <div class="order-confirm-sub">${escapeHtml(p.weight || '')} · ${Number(p.price || 0).toLocaleString('uk')} ₴ × ${qty}</div>
+      </div>
+      <div class="order-confirm-sum">${(Number(p.price || 0) * qty).toLocaleString('uk')} ₴</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="order-confirm-title">Ваше замовлення</div>${rows}`;
 }
 async function renderHistory() {
   const el = document.getElementById('historyContent');

@@ -555,6 +555,29 @@ def order_text(order_id, data_or_order, paid=False):
     return "\n".join(lines)
 
 
+def customer_order_text(order, title="✅ Замовлення підтверджено"):
+    items = json.loads(order.get("items_json") or "[]")
+    lines = [
+        f"{title}",
+        f"Замовлення #{order.get('id')}",
+        "",
+        "<b>Ви замовили:</b>",
+    ]
+    for item in items:
+        lines.append(
+            f"{item.get('emoji', '🫙')} {item.get('name', 'Товар')} × {item.get('qty', 1)} — {item.get('sum', 0)} ₴"
+        )
+    lines.extend([
+        "",
+        f"Разом: <b>{order.get('total', 0)} ₴</b>",
+        "",
+        f"Доставка: {order.get('city') or '—'}, {order.get('warehouse') or '—'}",
+    ])
+    if order.get("np_ttn"):
+        lines.append(f"ТТН: {order.get('np_ttn')}")
+    return "\n".join(lines)
+
+
 # ====================== NOVA POSHTA ======================
 def nova_poshta_request(model_name, called_method, method_properties):
     if not NP_API_KEY:
@@ -752,7 +775,7 @@ async def refresh_order_np_status(order_id):
         try:
             await bot.send_message(
                 int(updated_order["tg_user_id"]),
-                f"📦 Замовлення #{order_id} отримано. Дякуємо, що обрали Рідні квіти!",
+                customer_order_text(updated_order, "📦 Замовлення отримано. Дякуємо, що обрали Рідні квіти!"),
             )
         except Exception:
             logger.exception("Failed to notify user about NP received order %s", order_id)
@@ -993,7 +1016,7 @@ async def api_payment_status(orderId: str):
         if order and order.get("tg_user_id"):
             await bot.send_message(
                 int(order["tg_user_id"]),
-                f"✅ Оплату отримано!\nЗамовлення #{order['id']} передано в обробку.",
+                customer_order_text(order, "✅ Оплату отримано! Замовлення передано в обробку."),
             )
         if order:
             await send_or_edit_admin_order_message(
@@ -1119,7 +1142,7 @@ async def api_admin_order_received(request: Request):
         try:
             await bot.send_message(
                 int(updated_order["tg_user_id"]),
-                f"📦 Замовлення #{order_id} позначено як отримане. Дякуємо!",
+                customer_order_text(updated_order, "📦 Замовлення позначено як отримане. Дякуємо!"),
             )
         except Exception:
             logger.exception("Failed to notify user about received order %s", order_id)
@@ -1154,7 +1177,10 @@ async def api_admin_order_shipped(request: Request):
         try:
             await bot.send_message(
                 int(updated_order["tg_user_id"]),
-                f"📦 Замовлення #{order_id} відправлено. Статус доставки можна дивитися у застосунку Нової Пошти.",
+                customer_order_text(
+                    updated_order,
+                    "📦 Замовлення відправлено. Статус доставки можна дивитися у застосунку Нової Пошти.",
+                ),
             )
         except Exception:
             logger.exception("Failed to notify user about shipped order %s", order_id)
@@ -1341,7 +1367,7 @@ async def mono_webhook(request: Request):
         if paid_order.get("tg_user_id"):
             await bot.send_message(
                 int(paid_order["tg_user_id"]),
-                f"✅ Оплату отримано!\nЗамовлення #{paid_order['id']} передано в обробку.",
+                customer_order_text(paid_order, "✅ Оплату отримано! Замовлення передано в обробку."),
             )
         await send_or_edit_admin_order_message(
             paid_order["id"],
