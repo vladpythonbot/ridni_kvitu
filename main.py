@@ -35,6 +35,7 @@ NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
 MONO_TOKEN = os.getenv("MONO_TOKEN", "").strip()
 DATABASE_PATH = os.getenv("DATABASE_PATH", "shop.db").strip() or "shop.db"
 NP_TRACKING_INTERVAL_SECONDS = int(os.getenv("NP_TRACKING_INTERVAL_SECONDS", "1800"))
+NP_CACHE_SECONDS = int(os.getenv("NP_CACHE_SECONDS", "600"))
 ADMIN_IDS = {
     item.strip()
     for item in (os.getenv("ADMIN_IDS") or os.getenv("ADMIN_ID") or os.getenv("ADMIN_CHAT_ID") or "").split(",")
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
+np_cache: dict[tuple[str, str, str], tuple[float, list[dict[str, object]]]] = {}
 
 
 def db():
@@ -584,7 +586,33 @@ def nova_poshta_request(model_name, called_method, method_properties):
     return data.get("data") or []
 
 
+def np_cache_get(key):
+    cached = np_cache.get(key)
+    if not cached:
+        return None
+    created_at, value = cached
+    if time.time() - created_at > NP_CACHE_SECONDS:
+        np_cache.pop(key, None)
+        return None
+    return value
+
+
+def np_cache_set(key, value):
+    np_cache[key] = (time.time(), value)
+    if len(np_cache) > 300:
+        oldest_keys = sorted(np_cache, key=lambda item: np_cache[item][0])[:100]
+        for old_key in oldest_keys:
+            np_cache.pop(old_key, None)
+    return value
+
+
 async def np_search_cities(query):
+    query = query.strip().lower()
+    cache_key = ("cities", query, "")
+    cached = np_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         data = await asyncio.to_thread(
             nova_poshta_request,
@@ -605,7 +633,7 @@ async def np_search_cities(query):
             if x.get("DeliveryCity") or x.get("Ref")
         ]
         if cities:
-            return cities
+            return np_cache_set(cache_key, cities)
     except Exception as exc:
         logger.warning("Nova Poshta searchSettlements failed, trying getSettlements: %s", exc)
 
@@ -615,7 +643,7 @@ async def np_search_cities(query):
         "getSettlements",
         {"FindByString": query, "Warehouse": "1", "Limit": "10", "Page": "1"},
     )
-    return [
+    cities = [
         {
             "ref": x.get("Ref"),
             "name": ", ".join(
@@ -631,18 +659,27 @@ async def np_search_cities(query):
         for x in data
         if x.get("Ref") and x.get("Description")
     ]
+    return np_cache_set(cache_key, cities)
 
 
 async def np_search_warehouses(city_ref, query=""):
+    city_ref = city_ref.strip()
+    query = query.strip().lower()
+    cache_key = ("warehouses", city_ref, query)
+    cached = np_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     props = {"CityRef": city_ref, "Limit": "30", "Page": "1"}
     if query:
         props["FindByString"] = query
     data = await asyncio.to_thread(nova_poshta_request, "AddressGeneral", "getWarehouses", props)
-    return [
+    warehouses = [
         {"ref": x.get("Ref"), "name": x.get("Description"), "number": x.get("Number")}
         for x in data
         if x.get("Ref") and x.get("Description")
     ]
+    return np_cache_set(cache_key, warehouses)
 
 
 def normalize_phone_for_np(phone):

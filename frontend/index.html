@@ -219,7 +219,7 @@ textarea.form-input{resize:none;line-height:1.5}
         </div>
         <div class="suggest-hint">Почніть вводити місто і виберіть варіант зі списку Нової Пошти</div>
         <div class="suggest-wrap">
-          <input class="form-input" type="text" placeholder="Відділення Нової Пошти" id="payWarehouse" autocomplete="off" oninput="onWarehouseInput()" onfocus="searchWarehouses()" disabled>
+          <input class="form-input" type="text" placeholder="Відділення Нової Пошти" id="payWarehouse" autocomplete="off" oninput="onWarehouseInput()" disabled>
           <div class="suggest-list" id="warehouseSuggest"></div>
         </div>
         <div class="suggest-hint">Після вибору міста можна ввести номер або адресу відділення</div>
@@ -368,6 +368,8 @@ let cityTimer = null;
 let warehouseTimer = null;
 let cityRequestId = 0;
 let warehouseRequestId = 0;
+let lastCityQuery = '';
+let lastWarehouseQuery = '';
 let editingProductId = null;
 function normalizeProduct(p) {
   const meta = PRODUCT_META[p.id] || {};
@@ -771,12 +773,18 @@ function onCityInput() {
   warehouse.disabled = true;
   document.getElementById('warehouseSuggest').classList.remove('show');
   clearTimeout(cityTimer);
-  cityTimer = setTimeout(searchCities, 300);
+  cityTimer = setTimeout(searchCities, 500);
 }
 async function searchCities() {
   const q = document.getElementById('payCity').value.trim();
   const box = document.getElementById('citySuggest');
   if (q.length < 2) { box.classList.remove('show'); return; }
+  const normalized = q.toLowerCase();
+  if (normalized === lastCityQuery && box._items?.length) {
+    box.classList.add('show');
+    return;
+  }
+  lastCityQuery = normalized;
   const requestId = ++cityRequestId;
   box.innerHTML = '<div class="suggest-empty">Шукаємо...</div>';
   box.classList.add('show');
@@ -799,17 +807,30 @@ function selectCity(index) {
   warehouse.value = '';
   warehouse.focus();
   selectedWarehouse = null;
-  searchWarehouses();
+  lastWarehouseQuery = '';
+  document.getElementById('warehouseSuggest').innerHTML = '<div class="suggest-empty">Введіть номер або адресу відділення</div>';
+  document.getElementById('warehouseSuggest').classList.add('show');
 }
 function onWarehouseInput() {
   selectedWarehouse = null;
   clearTimeout(warehouseTimer);
-  warehouseTimer = setTimeout(searchWarehouses, 300);
+  warehouseTimer = setTimeout(searchWarehouses, 650);
 }
 async function searchWarehouses() {
   const box = document.getElementById('warehouseSuggest');
   if (!selectedCity?.ref) { box.classList.remove('show'); return; }
   const q = document.getElementById('payWarehouse').value.trim();
+  if (q.length < 1) {
+    box.innerHTML = '<div class="suggest-empty">Введіть номер або адресу відділення</div>';
+    box.classList.add('show');
+    return;
+  }
+  const normalized = selectedCity.ref + ':' + q.toLowerCase();
+  if (normalized === lastWarehouseQuery && box._items?.length) {
+    box.classList.add('show');
+    return;
+  }
+  lastWarehouseQuery = normalized;
   const requestId = ++warehouseRequestId;
   box.innerHTML = '<div class="suggest-empty">Шукаємо...</div>';
   box.classList.add('show');
