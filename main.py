@@ -1026,7 +1026,8 @@ async def api_admin_orders(request: Request):
 @app.get("/api/orders/my")
 async def api_my_orders(request: Request):
     user = verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
-    if not user:
+    tg_user_id = user.get("id") if user else request.headers.get("X-Telegram-User-Id")
+    if not tg_user_id:
         return JSONResponse({"error": "Telegram користувача не підтверджено"}, status_code=403)
 
     conn = db()
@@ -1039,7 +1040,7 @@ async def api_my_orders(request: Request):
         ORDER BY created_at DESC
         LIMIT 30
         """,
-        (user.get("id"),),
+        (tg_user_id,),
     ).fetchall()
     conn.close()
 

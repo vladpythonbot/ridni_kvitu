@@ -576,15 +576,13 @@ async function renderHistory() {
   const el = document.getElementById('historyContent');
   el.innerHTML = '<div class="cart-empty-state"><p>Завантажуємо...</p></div>';
 
-  if (!isTelegram) {
-    el.innerHTML = '<div class="cart-empty-state"><div class="emo">🧾</div><p>Історія доступна, коли магазин відкрито через Telegram.</p></div>';
-    return;
-  }
-
   try {
     const res = await fetch('/api/orders/my', {headers: authHeaders()});
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || 'Не вдалося завантажити історію');
+    if (!res.ok) {
+      const msg = data?.error || 'Історія доступна після відкриття магазину кнопкою в Telegram.';
+      throw new Error(msg);
+    }
     const orders = data.orders || [];
 
     if (!orders.length) {
