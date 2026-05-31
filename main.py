@@ -31,6 +31,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN") or ""
 WEBAPP_URL = (os.getenv("WEBAPP_URL") or "").rstrip("/")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
 NP_API_KEY = os.getenv("NP_API_KEY", "").strip()
 MONO_TOKEN = os.getenv("MONO_TOKEN", "").strip()
 DATABASE_PATH = os.getenv("DATABASE_PATH", "shop.db").strip() or "shop.db"
@@ -775,7 +776,7 @@ async def refresh_order_np_status(order_id):
         try:
             await bot.send_message(
                 int(updated_order["tg_user_id"]),
-                customer_order_text(updated_order, "📦 Замовлення отримано. Дякуємо, що обрали Рідні квіти!"),
+                f"📦 Замовлення #{order_id} отримано. Дякуємо за покупку!",
             )
         except Exception:
             logger.exception("Failed to notify user about NP received order %s", order_id)
@@ -860,10 +861,11 @@ def monobank_get(path, query):
 async def create_mono_invoice(order_id, data):
     total = int(data.get("total") or 0)
     items = data.get("items") or []
+    redirect_url = f"https://t.me/{BOT_USERNAME}?start=paid_{order_id}" if BOT_USERNAME else f"{WEBAPP_URL}?payment=done&orderId={order_id}"
     payload = {
         "amount": total * 100,
         "ccy": 980,
-        "redirectUrl": f"{WEBAPP_URL}?payment=done&orderId={order_id}",
+        "redirectUrl": redirect_url,
         "webHookUrl": f"{WEBAPP_URL}/api/mono/webhook",
         "merchantPaymInfo": {
             "reference": order_id,
@@ -1142,7 +1144,7 @@ async def api_admin_order_received(request: Request):
         try:
             await bot.send_message(
                 int(updated_order["tg_user_id"]),
-                customer_order_text(updated_order, "📦 Замовлення позначено як отримане. Дякуємо!"),
+                f"📦 Замовлення #{order_id} отримано. Дякуємо за покупку!",
             )
         except Exception:
             logger.exception("Failed to notify user about received order %s", order_id)
@@ -1177,10 +1179,7 @@ async def api_admin_order_shipped(request: Request):
         try:
             await bot.send_message(
                 int(updated_order["tg_user_id"]),
-                customer_order_text(
-                    updated_order,
-                    "📦 Замовлення відправлено. Статус доставки можна дивитися у застосунку Нової Пошти.",
-                ),
+                f"📦 Замовлення #{order_id} відправлено. Статус доставки можна дивитися у застосунку Нової Пошти.",
             )
         except Exception:
             logger.exception("Failed to notify user about shipped order %s", order_id)
@@ -1383,12 +1382,21 @@ async def mono_webhook(request: Request):
 
 # ====================== BOT ======================
 async def configure_bot_profile():
+    global BOT_USERNAME
+    if not BOT_USERNAME:
+        try:
+            me = await bot.get_me()
+            BOT_USERNAME = me.username or ""
+        except Exception:
+            logger.exception("Failed to fetch bot username")
+
     await bot.set_my_short_description(
-        short_description="Крафтове варення з квітів від майстерні «Рідні квіти»."
+        short_description="Спробуй мамину клубку на смак."
     )
     await bot.set_my_description(
         description=(
             "🌸 Рідні квіти — маленька майстерня крафтового варення з квітів.\n\n"
+            "Спробуй мамину клубку на смак.\n\n"
             "У магазині можна вибрати варення, оформити доставку Новою Поштою "
             "та оплатити замовлення онлайн."
         )
@@ -1403,8 +1411,30 @@ async def start(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🫙 Відкрити магазин", web_app=WebAppInfo(url=WEBAPP_URL))
     ]])
+    parts = (message.text or "").split(maxsplit=1)
+    payload = parts[1].strip() if len(parts) > 1 else ""
+    if payload.startswith("paid_"):
+        order_id = payload.replace("paid_", "", 1).strip()
+        order = get_order(order_id)
+        if order:
+            if order.get("status") not in {"paid", "shipped", "received"} and order.get("mono_invoice_id"):
+                try:
+                    mono_status = await get_mono_invoice_status(order["mono_invoice_id"])
+                    if mono_status == "success":
+                        update_order_payment(order_id, status="paid")
+                        order = get_order(order_id)
+                except Exception:
+                    logger.exception("Failed to refresh payment status from start payload %s", order_id)
+            status_text = "✅ Оплату отримано." if order.get("status") in {"paid", "shipped", "received"} else "⏳ Оплата ще перевіряється."
+            await message.answer(
+                f"{status_text}\nЗамовлення #{order_id}.",
+                reply_markup=kb,
+            )
+            return
+
     await message.answer(
         "🌸 <b>Рідні квіти</b>\n\n"
+        "Спробуй мамину клубку на смак.\n\n"
         "Крафтове варення з квітів🍯",
         reply_markup=kb,
     )

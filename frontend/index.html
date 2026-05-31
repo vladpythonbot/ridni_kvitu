@@ -165,6 +165,7 @@ textarea.form-input{resize:none;line-height:1.5}
 .a-order-action{flex:1;border:none;border-radius:10px;padding:8px 10px;font-family:'Jost',sans-serif;font-size:12px;cursor:pointer;background:var(--tg-bg);color:var(--tg-text);border:1px solid var(--border)}
 .a-order-action.done{background:var(--green-light);color:var(--green);border-color:transparent}
 .a-order-action.np{background:var(--gold-light);color:var(--marigold);border-color:transparent}
+.a-order-action.copy{background:#EAF1FB;color:#1A5FAA;border-color:transparent}
 .a-order-action.del{background:#FCEBEB;color:#A33A2B;border-color:transparent}
 .admin-prods-list{padding:0 16px;display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
 .a-prod{background:var(--tg-secondary);border-radius:14px;border:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;gap:10px}
@@ -195,7 +196,7 @@ textarea.form-input{resize:none;line-height:1.5}
       <div class="shop-hero">
         <div class="shop-hero-tag">Маленька майстерня · З любов'ю</div>
         <h1>Варення з <em>квітів</em></h1>
-        <p>Чорнобривці, м'ята, фіалка, шафран — все вручну</p>
+        <p>Спробуй мамину клубку на смак</p>
       </div>
       <div class="shop-pills">
         <button class="pill active" onclick="filterProd(this,'all')">Усі</button>
@@ -381,6 +382,7 @@ let warehouseRequestId = 0;
 let lastCityQuery = '';
 let lastWarehouseQuery = '';
 let editingProductId = null;
+let adminOrdersCache = [];
 function normalizeProduct(p) {
   const meta = PRODUCT_META[p.id] || {};
   return {
@@ -947,6 +949,7 @@ async function renderAdminOrders() {
   if (!data) return;
 
   const orders = data.orders || [];
+  adminOrdersCache = orders;
   const paidOrders = orders.filter(o => ['paid','shipped','received'].includes(o.status));
   const waitingOrders = orders.filter(o => !['paid','shipped','received'].includes(o.status));
   const revenue = paidOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
@@ -993,6 +996,7 @@ async function renderAdminOrders() {
         <div class="a-order-items">📮 ${npLine}</div>
         <div class="a-order-items">📞 ${escapeHtml(phone)} · ${escapeHtml(o.city || '—')} · ${escapeHtml(o.warehouse || '—')}</div>
         <div class="a-order-actions">
+          <button class="a-order-action copy" onclick="copyOrderForNp('${escapeHtml(o.id || '')}')">Копіювати для НП</button>
           <button class="a-order-action np" onclick="setOrderTtn('${escapeHtml(o.id || '')}','${escapeHtml(o.np_ttn || '')}')">ТТН</button>
           <button class="a-order-action np" onclick="checkNovaPoshtaOrder('${escapeHtml(o.id || '')}')" ${o.np_ttn ? '' : 'disabled'}>НП</button>
           <button class="a-order-action np" onclick="markOrderShipped('${escapeHtml(o.id || '')}')" ${['shipped','received'].includes(o.status) ? 'disabled' : ''}>Відправлено</button>
@@ -1016,6 +1020,51 @@ function formatOrderTime(value) {
     hour:'2-digit',
     minute:'2-digit'
   });
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.left = '-9999px';
+  document.body.appendChild(area);
+  area.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(area);
+  return ok;
+}
+
+async function copyOrderForNp(orderId) {
+  const order = adminOrdersCache.find(o => String(o.id) === String(orderId));
+  if (!order) {
+    showToast('❌ Замовлення не знайдено');
+    return;
+  }
+  const items = (order.items || [])
+    .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
+    .join(', ');
+  const text = [
+    `Замовлення #${order.id}`,
+    `Отримувач: ${order.name || [order.tg_first_name, order.tg_last_name].filter(Boolean).join(' ') || '—'}`,
+    `Телефон: ${order.phone || '—'}`,
+    `Місто: ${order.city || '—'}`,
+    `Відділення: ${order.warehouse || '—'}`,
+    `Товари: ${items || '—'}`,
+    `Сума: ${Number(order.total || 0).toLocaleString('uk')} ₴`,
+  ].join('\n');
+
+  try {
+    const ok = await copyText(text);
+    if (!ok) throw new Error('copy failed');
+    showToast('📋 Дані для НП скопійовано');
+  } catch (e) {
+    showToast('Не вдалося скопіювати');
+  }
 }
 
 async function setOrderTtn(orderId, currentTtn) {
