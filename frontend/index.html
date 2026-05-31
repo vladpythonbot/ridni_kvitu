@@ -597,7 +597,7 @@ async function renderHistory() {
         .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
         .join(' · ');
       const statusText = orderStatusText(o.status);
-      const statusClass = o.status === 'paid' || o.status === 'received' ? 'done' : 'new';
+      const statusClass = o.status === 'received' || o.status === 'paid' ? 'done' : (o.status === 'shipped' ? 'ship' : 'new');
       const npText = o.np_ttn ? `ТТН: ${o.np_ttn}${o.np_status ? ' · ' + o.np_status : ''}` : '';
       return `
         <div class="c-item">
@@ -620,6 +620,7 @@ async function renderHistory() {
 }
 function orderStatusText(status) {
   if (status === 'received') return 'Отримано';
+  if (status === 'shipped') return 'Відправлено';
   if (status === 'paid') return 'Оплачено';
   if (status === 'payment_waiting') return 'Очікує оплату';
   if (status === 'expired') return 'Прострочено';
@@ -895,8 +896,8 @@ async function renderAdminOrders() {
   if (!data) return;
 
   const orders = data.orders || [];
-  const paidOrders = orders.filter(o => o.status === 'paid');
-  const waitingOrders = orders.filter(o => o.status !== 'paid');
+  const paidOrders = orders.filter(o => ['paid','shipped','received'].includes(o.status));
+  const waitingOrders = orders.filter(o => !['paid','shipped','received'].includes(o.status));
   const revenue = paidOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   document.getElementById('adminOrderCount').textContent = orders.length;
@@ -914,7 +915,7 @@ async function renderAdminOrders() {
     const itemsText = (o.items || [])
       .map(item => `${item.emoji || '🫙'} ${item.name || 'Товар'} × ${item.qty || 1}`)
       .join(' · ');
-    const statusClass = o.status === 'paid' || o.status === 'received' ? 'done' : 'new';
+    const statusClass = o.status === 'received' || o.status === 'paid' ? 'done' : (o.status === 'shipped' ? 'ship' : 'new');
     const statusText = orderStatusText(o.status);
     const phone = o.phone || (o.phone_shared ? 'телефон ще не підтягнувся' : '—');
     const tgFullName = [o.tg_first_name, o.tg_last_name].filter(Boolean).join(' ');
@@ -943,6 +944,7 @@ async function renderAdminOrders() {
         <div class="a-order-actions">
           <button class="a-order-action np" onclick="setOrderTtn('${escapeHtml(o.id || '')}','${escapeHtml(o.np_ttn || '')}')">ТТН</button>
           <button class="a-order-action np" onclick="checkNovaPoshtaOrder('${escapeHtml(o.id || '')}')" ${o.np_ttn ? '' : 'disabled'}>НП</button>
+          <button class="a-order-action np" onclick="markOrderShipped('${escapeHtml(o.id || '')}')" ${['shipped','received'].includes(o.status) ? 'disabled' : ''}>Відправлено</button>
           <button class="a-order-action done" onclick="markOrderReceived('${escapeHtml(o.id || '')}')" ${o.status === 'received' ? 'disabled' : ''}>Отримано</button>
           <button class="a-order-action del" onclick="hideOrder('${escapeHtml(o.id || '')}')">Видалити</button>
         </div>
@@ -984,6 +986,15 @@ async function checkNovaPoshtaOrder(orderId) {
   const r = await adminRequest('order/np/check', {orderId});
   if (!r) return;
   showToast(r.order?.status === 'received' ? '✅ Посилку отримано' : '✅ Статус оновлено');
+  await renderAdminOrders();
+}
+
+async function markOrderShipped(orderId) {
+  const ok = await confirmAction('Позначити замовлення як відправлене?');
+  if (!ok) return;
+  const r = await adminRequest('order/shipped', {orderId});
+  if (!r) return;
+  showToast('📦 Позначено як відправлене');
   await renderAdminOrders();
 }
 

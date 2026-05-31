@@ -1090,6 +1090,41 @@ async def api_admin_order_received(request: Request):
     return {"ok": True, "order": updated_order}
 
 
+@app.post("/api/admin/order/shipped")
+async def api_admin_order_shipped(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    order_id = str(data.get("orderId") or "").strip()
+    if not order_id:
+        return JSONResponse({"error": "Невірний ID замовлення"}, status_code=400)
+
+    order = get_order(order_id)
+    if not order:
+        return JSONResponse({"error": "Замовлення не знайдено"}, status_code=404)
+
+    update_order_payment(order_id, status="shipped")
+    updated_order = get_order(order_id)
+    await send_or_edit_admin_order_message(
+        order_id,
+        order_text(order_id, updated_order, paid=True),
+        reply_markup=admin_panel_markup(),
+        edit=True,
+    )
+
+    if updated_order and updated_order.get("tg_user_id"):
+        try:
+            await bot.send_message(
+                int(updated_order["tg_user_id"]),
+                f"📦 Замовлення #{order_id} відправлено. Статус доставки можна дивитися у застосунку Нової Пошти.",
+            )
+        except Exception:
+            logger.exception("Failed to notify user about shipped order %s", order_id)
+
+    return {"ok": True, "order": updated_order}
+
+
 @app.post("/api/admin/order/ttn")
 async def api_admin_order_ttn(request: Request):
     if not admin_from_request(request):
