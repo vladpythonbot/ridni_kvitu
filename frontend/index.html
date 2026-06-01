@@ -150,6 +150,7 @@ textarea.form-input{resize:none;line-height:1.5}
 .a-stat-val.gold{color:var(--marigold)}
 .a-stat-val.green{color:var(--green)}
 .admin-section{padding:0 16px;margin-bottom:6px;font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--tg-text)}
+.admin-clear-orders{margin:0 16px 14px;width:calc(100% - 32px);border:none;border-radius:12px;background:#FCEBEB;color:#A33A2B;padding:11px 14px;font-family:'Jost',sans-serif;font-size:13px;cursor:pointer}
 .admin-orders{padding:0 16px;display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
 .a-order{background:var(--tg-secondary);border-radius:14px;border:1px solid var(--border);padding:12px 14px}
 .a-order-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
@@ -268,6 +269,7 @@ textarea.form-input{resize:none;line-height:1.5}
         <div class="a-stat"><div class="a-stat-lbl">Очікують</div><div class="a-stat-val gold">—</div></div>
       </div>
       <div class="admin-section">Замовлення</div>
+      <button class="admin-clear-orders" onclick="clearAllOrders()">Очистити тестові замовлення</button>
       <div class="admin-orders" id="adminOrders">
         <div class="a-order"><div class="a-order-top"><span class="a-order-id">#0001</span><span class="a-order-name">Оксана М.</span><span class="a-badge new">Новий</span></div><div class="a-order-items">🌼 Чорнобривці × 2 · 💜 Фіалка × 1 — 450 ₴</div></div>
         <div class="a-order"><div class="a-order-top"><span class="a-order-id">#0002</span><span class="a-order-name">Андрій Р.</span><span class="a-badge ship">Відправлено</span></div><div class="a-order-items">🟡 Шафран × 1 — 150 ₴</div></div>
@@ -1113,6 +1115,15 @@ async function hideOrder(orderId) {
   const r = await adminRequest('order/delete', {orderId});
   if (!r) return;
   showToast('🗑️ Замовлення приховано');
+  await renderAdminOrders();
+}
+
+async function clearAllOrders() {
+  const ok = await confirmAction('Очистити всі замовлення з бази перед релізом? Товари залишаться.');
+  if (!ok) return;
+  const r = await adminRequest('orders/clear', {confirm:'CLEAR_ORDERS'});
+  if (!r) return;
+  showToast(`🧹 Замовлення очищено: ${r.deleted || 0}`);
   await renderAdminOrders();
 }
 

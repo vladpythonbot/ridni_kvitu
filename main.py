@@ -1257,6 +1257,26 @@ async def api_admin_order_delete(request: Request):
     return {"ok": True}
 
 
+@app.post("/api/admin/orders/clear")
+async def api_admin_orders_clear(request: Request):
+    if not admin_from_request(request):
+        return JSONResponse({"error": "Доступ заборонено"}, status_code=403)
+
+    data = await request.json()
+    confirm = str(data.get("confirm") or "").strip()
+    if confirm != "CLEAR_ORDERS":
+        return JSONResponse({"error": "Підтвердження не збігається"}, status_code=400)
+
+    conn = db()
+    conn.execute("DELETE FROM admin_order_messages")
+    cur = conn.execute("DELETE FROM orders")
+    deleted = cur.rowcount
+    conn.commit()
+    conn.close()
+
+    return {"ok": True, "deleted": deleted}
+
+
 @app.post("/api/admin/product/add")
 async def api_admin_product_add(request: Request):
     if not admin_from_request(request):
