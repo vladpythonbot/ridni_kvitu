@@ -1,37 +1,43 @@
 # Ridni Kvitu
 
-Telegram-bot and mini app for a small flower shop. The project combines a product catalog, admin tools, PostgreSQL storage, and a lightweight web interface for presenting bouquets.
+Telegram shop and Web App for a small flower brand. The project combines a Telegram bot, FastAPI backend, mobile-first storefront, order processing, Monobank payments, and Nova Poshta delivery support.
 
 ## Features
 
-- Product catalog inside Telegram
-- Product cards with photo, description, and price
-- Admin panel for adding and deleting products
-- PostgreSQL database initialization on startup
-- Separate user and admin routers
-- Telegram Mini App / web catalog prototype
-- Clean environment-based configuration
+- Telegram Web App storefront
+- Product catalog with cart and checkout
+- Customer order history
+- Monobank invoice creation and payment status checks
+- Monobank webhook for successful payments
+- Admin Web App panel for orders and products
+- Admin notifications inside Telegram
+- Nova Poshta city, warehouse, TTN, and tracking support
+- SQLite persistence for products, orders, contacts, and admin message links
+- FastAPI static frontend and JSON API in one deployable service
 
 ## Tech Stack
 
 - Python 3.11+
+- FastAPI
 - aiogram 3
-- asyncpg
-- PostgreSQL / Supabase
+- SQLite
+- aiohttp
+- Monobank merchant API
+- Nova Poshta API
 - python-dotenv
-- Vite + React for the web app prototype
+- Uvicorn
 
 ## Project Structure
 
 ```text
 .
-├── main.py                  # Bot entry point
-├── bot.py                   # Telegram bot instance
-├── db/                      # Database connection and queries
-├── routers/                 # User and admin bot logic
-├── keyboards/               # Reply and inline keyboards
-├── ridni-kvitu-miniapp/     # Simple static mini app
-└── ridni-kvitu-app/         # React/Vite app prototype
+|-- main.py              # FastAPI app, Telegram bot, API endpoints, shop logic
+|-- config.py            # Environment configuration helper
+|-- database.py          # SQLAlchemy base/session helper
+|-- models.py            # Order model prototype
+|-- frontend/index.html  # Telegram Web App storefront and admin UI
+|-- requirements.txt     # Python dependencies
+`-- runtime.txt          # Runtime version for deployment
 ```
 
 ## Environment Variables
@@ -40,10 +46,28 @@ Create a `.env` file in the project root:
 
 ```env
 BOT_TOKEN=your_telegram_bot_token
-DATABASE_URL=your_postgresql_connection_url
+WEBAPP_URL=https://your-deployed-app.example.com
+BOT_USERNAME=your_bot_username
+ADMIN_IDS=123456789
+MONO_TOKEN=your_monobank_token
+NP_API_KEY=your_nova_poshta_api_key
+DATABASE_PATH=shop.db
+RUN_BOT=1
 ```
 
-Do not commit real tokens, database URLs, or admin credentials.
+Required for a normal production run:
+
+- `BOT_TOKEN`
+- `WEBAPP_URL`
+- one of `ADMIN_IDS`, `ADMIN_ID`, or `ADMIN_CHAT_ID`
+
+Optional integrations:
+
+- `MONO_TOKEN` enables Monobank invoice creation.
+- `NP_API_KEY` enables Nova Poshta search and tracking.
+- `DATABASE_PATH` lets cloud hosting use a mounted persistent path.
+
+Do not commit real tokens, API keys, database files, or customer data.
 
 ## Run Locally
 
@@ -51,17 +75,20 @@ Do not commit real tokens, database URLs, or admin credentials.
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python main.py
+uvicorn main:app --reload
 ```
 
-For the React app:
+Open the app:
 
-```bash
-cd ridni-kvitu-app
-npm install
-npm run dev
+```text
+http://127.0.0.1:8000
 ```
 
-## Notes
+For Telegram Web App testing, `WEBAPP_URL` must point to an HTTPS URL available to Telegram.
 
-The bot uses long polling. For production deployment, set environment variables in the hosting dashboard and connect a persistent PostgreSQL database.
+## Deployment Notes
+
+- The app is designed for a single FastAPI process that also starts the Telegram bot.
+- Use persistent storage for `shop.db` on cloud hosting.
+- Set `RUN_BOT=0` only if you need to run the web API without Telegram polling.
+- Run only one active polling instance per Telegram bot token.

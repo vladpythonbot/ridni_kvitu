@@ -21,6 +21,9 @@ build/
 dist/
 *.egg-info/
 
+# JavaScript dependencies
+node_modules/
+
 # Local databases with orders/customer data
 shop.db
 db.sqlite3
