@@ -822,20 +822,37 @@ def monobank_request(path, payload):
     if not MONO_TOKEN:
         raise RuntimeError("MONO_TOKEN не налаштовано")
 
-    req = urllib.request.Request(
-        "https://api.monobank.ua" + path,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", "X-Token": MONO_TOKEN},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as res:
-            return json.loads(res.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Monobank HTTP {exc.code}: {body}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Monobank недоступний: {exc}") from exc
+    last_error = None
+    for attempt in range(2):
+        req = urllib.request.Request(
+            "https://api.monobank.ua" + path,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Token": MONO_TOKEN},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=12) as res:
+                return json.loads(res.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if exc.code in {502, 503, 504}:
+                last_error = RuntimeError("Monobank тимчасово не відповідає. Спробуйте ще раз за кілька хвилин.")
+            elif exc.code == 403:
+                last_error = RuntimeError("Monobank відхилив токен. Перевірте MONO_TOKEN у Railway.")
+            elif exc.code == 429:
+                last_error = RuntimeError("Забагато запитів до Monobank. Спробуйте ще раз за хвилину.")
+            else:
+                last_error = RuntimeError(f"Monobank HTTP {exc.code}: {body}")
+            if exc.code not in {502, 503, 504} or attempt == 1:
+                raise last_error from exc
+        except urllib.error.URLError as exc:
+            last_error = RuntimeError(f"Monobank недоступний: {exc}")
+            if attempt == 1:
+                raise last_error from exc
+
+        time.sleep(attempt + 1)
+
+    raise last_error or RuntimeError("Monobank тимчасово недоступний")
 
 
 def monobank_get(path, query):
@@ -876,7 +893,8 @@ async def create_mono_invoice(order_id, data):
                 {
                     "name": item.get("name", "Товар"),
                     "qty": int(item.get("qty") or 1),
-                    "sum": int(item.get("sum") or 0) * 100,
+                    "sum": int(item.get("price") or 0) * 100,
+                    "total": int(item.get("sum") or 0) * 100,
                     "code": str(item.get("id", "")),
                     "icon": item.get("emoji", "🫙"),
                     "unit": "шт.",
@@ -972,7 +990,8 @@ async def api_np_warehouses(cityRef: str, q: str = ""):
 @app.post("/api/payment/create")
 async def api_payment_create(request: Request):
     data = await request.json()
-    order_id = save_order(data)
+    order_id = str(data.get("orderId") or os.urandom(4).hex())
+    data["orderId"] = order_id
 
     try:
         invoice = await create_mono_invoice(order_id, data)
@@ -985,14 +1004,15 @@ async def api_payment_create(request: Request):
     if not invoice_id or not page_url:
         return JSONResponse({"error": "Monobank не повернув invoiceId/pageUrl"}, status_code=502)
 
+    save_order(data)
     update_order_payment(order_id, invoice_id=invoice_id, page_url=page_url, status="payment_waiting")
     saved_order = get_order(order_id)
 
-    await send_or_edit_admin_order_message(
+    asyncio.create_task(send_or_edit_admin_order_message(
         order_id,
         order_text(order_id, saved_order or data, paid=False),
         reply_markup=admin_panel_markup(),
-    )
+    ))
 
     return {"ok": True, "orderId": order_id, "invoiceId": invoice_id, "paymentUrl": page_url}
 

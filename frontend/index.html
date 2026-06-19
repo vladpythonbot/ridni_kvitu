@@ -385,6 +385,7 @@ let lastCityQuery = '';
 let lastWarehouseQuery = '';
 let editingProductId = null;
 let adminOrdersCache = [];
+let paymentCreating = false;
 function normalizeProduct(p) {
   const meta = PRODUCT_META[p.id] || {};
   return {
@@ -891,7 +892,9 @@ function orderPayload() {
     return { id:+id, name:p.name, emoji:p.emoji, price:p.price, qty, sum:p.price * qty };
   });
 }
-function submitOrder() {
+async function submitOrder() {
+  if (paymentCreating) return;
+
   const name = document.getElementById('payName').value.trim();
   const manualPhone = document.getElementById('payPhone').value.trim();
   const phoneShared = customerPhone === 'shared';
@@ -921,25 +924,50 @@ function submitOrder() {
     total,
     comment
   };
+
+  paymentCreating = true;
+  document.querySelectorAll('.mono-pay-btn').forEach(button => button.disabled = true);
+  tg?.MainButton?.showProgress?.();
   showToast('Створюємо оплату...');
-  fetch('/api/payment/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
-    .then(async r => {
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || 'Не вдалося створити оплату');
-      return data;
-    })
-    .then(data => {
-      cart = {};
-      syncCartUi();
-      renderProducts();
-      showToast('Відкриваємо оплату Monobank...');
-      if (isTelegram && tg?.openLink) {
-        tg.openLink(data.paymentUrl);
-      } else {
-        window.location.href = data.paymentUrl;
-      }
-    })
-    .catch(e => showToast('❌ ' + e.message));
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35000);
+
+  try {
+    const response = await fetch('/api/payment/create', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || `Помилка сервера ${response.status}`);
+    }
+    if (!data.paymentUrl) {
+      throw new Error('Сервер не повернув посилання на оплату');
+    }
+
+    cart = {};
+    syncCartUi();
+    renderProducts();
+    showToast('Відкриваємо оплату Monobank...');
+    if (isTelegram && tg?.openLink) {
+      tg.openLink(data.paymentUrl);
+    } else {
+      window.location.assign(data.paymentUrl);
+    }
+  } catch (error) {
+    const message = error?.name === 'AbortError'
+      ? 'Monobank довго не відповідає. Спробуйте ще раз за хвилину.'
+      : error.message;
+    showToast('❌ ' + message, 7000);
+  } finally {
+    clearTimeout(timeout);
+    paymentCreating = false;
+    document.querySelectorAll('.mono-pay-btn').forEach(button => button.disabled = false);
+    tg?.MainButton?.hideProgress?.();
+  }
 }
 async function renderAdmin() {
   renderAdminProds();
@@ -1215,11 +1243,12 @@ async function saveProduct() {
   closeProductEditor();
   await loadProducts();
 }
-function showToast(msg) {
+function showToast(msg, duration = 2200) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2200);
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(() => t.classList.remove('show'), duration);
 }
 loadProducts();
 syncCartUi();
