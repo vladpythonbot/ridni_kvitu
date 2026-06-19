@@ -269,7 +269,7 @@ textarea.form-input{resize:none;line-height:1.5}
         <div class="a-stat"><div class="a-stat-lbl">Очікують</div><div class="a-stat-val gold">—</div></div>
       </div>
       <div class="admin-section">Замовлення</div>
-      <button class="admin-clear-orders" onclick="clearAllOrders()">Очистити тестові замовлення</button>
+      <button class="admin-clear-orders" onclick="clearAllOrders()">Очистити замовлення</button>
       <div class="admin-orders" id="adminOrders">
         <div class="a-order"><div class="a-order-top"><span class="a-order-id">#0001</span><span class="a-order-name">Оксана М.</span><span class="a-badge new">Новий</span></div><div class="a-order-items">🌼 Чорнобривці × 2 · 💜 Фіалка × 1 — 450 ₴</div></div>
         <div class="a-order"><div class="a-order-top"><span class="a-order-id">#0002</span><span class="a-order-name">Андрій Р.</span><span class="a-badge ship">Відправлено</span></div><div class="a-order-items">🟡 Шафран × 1 — 150 ₴</div></div>
@@ -1147,7 +1147,7 @@ async function hideOrder(orderId) {
 }
 
 async function clearAllOrders() {
-  const ok = await confirmAction('Очистити всі замовлення з бази перед релізом? Товари залишаться.');
+  const ok = await confirmAction('Видалити всі замовлення? Історія покупок і дані про виручку також будуть очищені. Цю дію неможливо скасувати. Товари залишаться.');
   if (!ok) return;
   const r = await adminRequest('orders/clear', {confirm:'CLEAR_ORDERS'});
   if (!r) return;
