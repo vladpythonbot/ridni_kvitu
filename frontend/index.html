@@ -65,7 +65,7 @@ html,body{height:100%;width:100%;font-family:'Jost',sans-serif;font-weight:300;b
 .p-weight{font-size:11px;color:var(--muted);margin-bottom:8px}
 .p-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;min-height:36px;}
 .p-price{font-size:16px;font-weight:500;color:var(--marigold);white-space:nowrap}
-.p-add{width:30px;height:30px;border-radius:50%;background:var(--marigold);color:#fff;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;-webkit-tap-highlight-color:transparent}
+.p-add{min-width:78px;height:30px;border-radius:999px;background:var(--marigold);color:#fff;border:none;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0 12px;transition:background .15s;-webkit-tap-highlight-color:transparent}
 .p-add:active{background:var(--bark)}
 .catalog-qty{display:flex;align-items:center;gap:5px;background:var(--green-light);border-radius:999px;padding:3px}
 .catalog-qty .q-btn{width:24px;height:24px;border-radius:50%;background:#fff;color:var(--green);font-size:15px}
@@ -239,7 +239,7 @@ textarea.form-input{resize:none;line-height:1.5}
         <textarea class="form-input" placeholder="Побажання до замовлення (необов'язково)" id="payComment" rows="3"></textarea>
       </div>
       <button class="mono-pay-btn" onclick="submitOrder()"><div class="mono-logo-badge">mono</div>Оплатити через Monobank</button>
-      <div class="pay-note">💳 Після підтвердження відкриється посилання на оплату через Monobank. Відправка після оплати протягом 1–2 днів.</div>
+      <div class="pay-note">&#128179; &#1053;&#1086;&#1074;&#1072; &#1055;&#1086;&#1096;&#1090;&#1072; &#1087;&#1086; &#1059;&#1082;&#1088;&#1072;&#1111;&#1085;&#1110;. &#1059;&#1082;&#1088;&#1087;&#1086;&#1096;&#1090;&#1072; &#8212; &#1079;&#1072; &#1087;&#1086;&#1087;&#1077;&#1088;&#1077;&#1076;&#1085;&#1110;&#1084; &#1091;&#1079;&#1075;&#1086;&#1076;&#1078;&#1077;&#1085;&#1085;&#1103;&#1084;. &#1044;&#1086;&#1089;&#1090;&#1072;&#1074;&#1082;&#1091; &#1086;&#1087;&#1083;&#1072;&#1095;&#1091;&#1108; &#1087;&#1086;&#1082;&#1091;&#1087;&#1077;&#1094;&#1100; &#1079;&#1072; &#1090;&#1072;&#1088;&#1080;&#1092;&#1072;&#1084;&#1080; &#1089;&#1083;&#1091;&#1078;&#1073;&#1080; &#1076;&#1086;&#1089;&#1090;&#1072;&#1074;&#1082;&#1080;. &#1042;&#1110;&#1076;&#1087;&#1088;&#1072;&#1074;&#1083;&#1103;&#1108;&#1084;&#1086; &#1087;&#1110;&#1089;&#1083;&#1103; &#1086;&#1087;&#1083;&#1072;&#1090;&#1080; &#1087;&#1088;&#1086;&#1090;&#1103;&#1075;&#1086;&#1084; 1&#8211;2 &#1088;&#1086;&#1073;&#1086;&#1095;&#1080;&#1093; &#1076;&#1085;&#1110;&#1074;. &#1054;&#1087;&#1083;&#1072;&#1090;&#1072; &#8212; &#1095;&#1077;&#1088;&#1077;&#1079; Monobank &#1091; Mini App.</div>
     </div>
     <div class="screen hidden-right" id="screen-info">
       <div class="info-hero">
@@ -251,13 +251,15 @@ textarea.form-input{resize:none;line-height:1.5}
         <div class="fact-card"><div class="fact-icon">🌼</div><div class="fact-label">Основа</div><div class="fact-val">Чорнобривці з саду</div></div>
         <div class="fact-card"><div class="fact-icon">🫙</div><div class="fact-label">Приготування</div><div class="fact-val">Ручна робота</div></div>
         <div class="fact-card"><div class="fact-icon">🍬</div><div class="fact-label">Склад</div><div class="fact-val">Квіти, цукор, любов</div></div>
-        <div class="fact-card"><div class="fact-icon">🚚</div><div class="fact-label">Доставка</div><div class="fact-val">Нова Пошта по Україні</div></div>
+        <div class="fact-card"><div class="fact-icon">&#128666;</div><div class="fact-label">&#1044;&#1086;&#1089;&#1090;&#1072;&#1074;&#1082;&#1072;</div><div class="fact-val">&#1053;&#1086;&#1074;&#1072; &#1055;&#1086;&#1096;&#1090;&#1072;, &#1059;&#1082;&#1088;&#1087;&#1086;&#1096;&#1090;&#1072; &#1079;&#1072; &#1076;&#1086;&#1084;&#1086;&#1074;&#1083;&#1077;&#1085;&#1110;&#1089;&#1090;&#1102;</div></div>
       </div>
       <div class="info-cards">
         <div class="info-card"><div class="info-card-icon">💬</div><div><div class="info-card-title">Telegram</div><div class="info-card-text"><a class="info-card-link" href="https://t.me/ridni_kvitu" target="_blank">@ridni_kvitu</a></div></div></div>
         <div class="info-card"><div class="info-card-icon">📞</div><div><div class="info-card-title">Телефон</div><div class="info-card-text"><a class="info-card-link" href="tel:+380986717130">+380 98 671 71 30</a></div></div></div>
-        <div class="info-card"><div class="info-card-icon">📍</div><div><div class="info-card-title">Адреса</div><div class="info-card-text">Харківська область</div></div></div>
-        <div class="info-card"><div class="info-card-icon">📦</div><div><div class="info-card-title">Доставка</div><div class="info-card-text">Нова Пошта по всій Україні</div></div></div>
+        <div class="info-card"><div class="info-card-icon">&#128205;</div><div><div class="info-card-title">&#1040;&#1076;&#1088;&#1077;&#1089;&#1072;</div><div class="info-card-text">&#1061;&#1072;&#1088;&#1082;&#1110;&#1074;&#1089;&#1100;&#1082;&#1072; &#1086;&#1073;&#1083;&#1072;&#1089;&#1090;&#1100;</div></div></div>
+        <div class="info-card"><div class="info-card-icon">&#128230;</div><div><div class="info-card-title">&#1044;&#1086;&#1089;&#1090;&#1072;&#1074;&#1082;&#1072;</div><div class="info-card-text">&#1053;&#1086;&#1074;&#1072; &#1055;&#1086;&#1096;&#1090;&#1072; &#1087;&#1086; &#1059;&#1082;&#1088;&#1072;&#1111;&#1085;&#1110;. &#1059;&#1082;&#1088;&#1087;&#1086;&#1096;&#1090;&#1072; &#8212; &#1079;&#1072; &#1087;&#1086;&#1087;&#1077;&#1088;&#1077;&#1076;&#1085;&#1110;&#1084; &#1091;&#1079;&#1075;&#1086;&#1076;&#1078;&#1077;&#1085;&#1085;&#1103;&#1084;. &#1044;&#1086;&#1089;&#1090;&#1072;&#1074;&#1082;&#1091; &#1086;&#1087;&#1083;&#1072;&#1095;&#1091;&#1108; &#1087;&#1086;&#1082;&#1091;&#1087;&#1077;&#1094;&#1100; &#1079;&#1072; &#1090;&#1072;&#1088;&#1080;&#1092;&#1072;&#1084;&#1080; &#1089;&#1083;&#1091;&#1078;&#1073;&#1080; &#1076;&#1086;&#1089;&#1090;&#1072;&#1074;&#1082;&#1080;. &#1042;&#1110;&#1076;&#1087;&#1088;&#1072;&#1074;&#1083;&#1103;&#1108;&#1084;&#1086; &#1087;&#1110;&#1089;&#1083;&#1103; &#1086;&#1087;&#1083;&#1072;&#1090;&#1080; &#1087;&#1088;&#1086;&#1090;&#1103;&#1075;&#1086;&#1084; 1&#8211;2 &#1088;&#1086;&#1073;&#1086;&#1095;&#1080;&#1093; &#1076;&#1085;&#1110;&#1074;. &#1054;&#1087;&#1083;&#1072;&#1090;&#1072; &#8212; &#1095;&#1077;&#1088;&#1077;&#1079; Monobank &#1091; Mini App.</div></div></div>
+        <div class="info-card"><div class="info-card-icon">&#128179;</div><div><div class="info-card-title">&#1054;&#1087;&#1083;&#1072;&#1090;&#1072;</div><div class="info-card-text">&#1054;&#1087;&#1083;&#1072;&#1090;&#1072; &#1095;&#1077;&#1088;&#1077;&#1079; Monobank &#1091; Mini App. &#1042;&#1110;&#1076;&#1087;&#1088;&#1072;&#1074;&#1082;&#1072; &#1079;&#1072;&#1084;&#1086;&#1074;&#1083;&#1077;&#1085;&#1085;&#1103; &#1087;&#1110;&#1089;&#1083;&#1103; &#1086;&#1087;&#1083;&#1072;&#1090;&#1080; &#1087;&#1088;&#1086;&#1090;&#1103;&#1075;&#1086;&#1084; 1&#8211;2 &#1088;&#1086;&#1073;&#1086;&#1095;&#1080;&#1093; &#1076;&#1085;&#1110;&#1074;.</div></div></div>
+        <div class="info-card"><div class="info-card-icon">&#8617;</div><div><div class="info-card-title">&#1055;&#1086;&#1074;&#1077;&#1088;&#1085;&#1077;&#1085;&#1085;&#1103;</div><div class="info-card-text">&#1079;&#1075;&#1110;&#1076;&#1085;&#1086; &#1110;&#1079; &#1079;&#1072;&#1082;&#1086;&#1085;&#1086;&#1076;&#1072;&#1074;&#1089;&#1090;&#1074;&#1086;&#1084; &#1059;&#1082;&#1088;&#1072;&#1111;&#1085;&#1080;, &#1087;&#1088;&#1086;&#1076;&#1086;&#1074;&#1086;&#1083;&#1100;&#1095;&#1110; &#1090;&#1086;&#1074;&#1072;&#1088;&#1080; &#1085;&#1072;&#1083;&#1077;&#1078;&#1085;&#1086;&#1111; &#1103;&#1082;&#1086;&#1089;&#1090;&#1110; &#1087;&#1086;&#1074;&#1077;&#1088;&#1085;&#1077;&#1085;&#1085;&#1102; &#1081; &#1086;&#1073;&#1084;&#1110;&#1085;&#1091; &#1085;&#1077; &#1087;&#1110;&#1076;&#1083;&#1103;&#1075;&#1072;&#1102;&#1090;&#1100;. &#1071;&#1082;&#1097;&#1086; &#1090;&#1086;&#1074;&#1072;&#1088; &#1087;&#1086;&#1096;&#1082;&#1086;&#1076;&#1080;&#1074;&#1089;&#1103; &#1087;&#1110;&#1076; &#1095;&#1072;&#1089; &#1090;&#1088;&#1072;&#1085;&#1089;&#1087;&#1086;&#1088;&#1090;&#1091;&#1074;&#1072;&#1085;&#1085;&#1103;, &#1079;&#1074;&#8217;&#1103;&#1078;&#1110;&#1090;&#1100;&#1089;&#1103; &#1079; &#1085;&#1072;&#1084;&#1080; &#1076;&#1083;&#1103; &#1082;&#1086;&#1084;&#1087;&#1077;&#1085;&#1089;&#1072;&#1094;&#1110;&#1111;.</div></div></div>
       </div>
     </div>
     <div class="screen hidden-right" id="screen-admin">
@@ -521,7 +523,7 @@ function renderProducts() {
             <button class="q-btn" onclick="changeQty(${p.id},-1)">−</button>
             <span class="q-num">${inCart}</span>
             <button class="q-btn" onclick="changeQty(${p.id},1)">+</button>
-          </div>` : `<button class="p-add" onclick="addToCart(${p.id})">+</button>`}
+          </div>` : `<button class="p-add" onclick="addToCart(${p.id})">&#1050;&#1091;&#1087;&#1080;&#1090;&#1080;</button>`}
         </div>
       </div>
     </div>`;
